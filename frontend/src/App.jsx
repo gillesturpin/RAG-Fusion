@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import axios from 'axios'
 import {
   Send, Brain, Zap, Database, DollarSign,
@@ -9,10 +9,12 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import './App.css'
 
-const API_URL = 'http://localhost:8000'
+// Dynamic API URL for production (Hugging Face uses port 7860 for frontend, 8000 for backend)
+const API_URL = window.location.hostname === 'localhost'
+  ? 'http://172.31.245.104:8000'  // Local development
+  : `${window.location.protocol}//${window.location.hostname}:8000` // Production
 
 function App() {
-  // Agent selector enabled
   const [question, setQuestion] = useState('')
   const [messages, setMessages] = useState([])
   const [loading, setLoading] = useState(false)
@@ -22,17 +24,131 @@ function App() {
   const [showUpload, setShowUpload] = useState(false)
   const [showDocumentsModal, setShowDocumentsModal] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
-  const [selectedAgent, setSelectedAgent] = useState('advanced') // 'advanced' or 'basic'
+
+  // Use ref to avoid recreating the streaming message on every render
+  const streamingContentRef = useRef('')
+  const messagesEndRef = useRef(null)
+
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
 
   // Fetch initial documents
   useEffect(() => {
     fetchDocuments()
   }, [])
 
+  const fetchDocuments = useCallback(async () => {
+    try {
+      const response = await axios.get(`${API_URL}/api/documents`)
+      setDocuments(response.data.documents || [])
+    } catch (error) {
+      console.error('Error fetching documents:', error)
+    }
+  }, [])
+
+  const handleUpload = useCallback(async (files) => {
+    if (!files || files.length === 0) return
+    if (uploading) {
+      console.log('⚠️ Upload already in progress, skipping')
+      return
+    }
+
+    console.log('📤 Starting upload for', files.length, 'files')
+    setUploading(true)
+    setUploadProgress({ total: files.length, current: 0, status: 'Uploading...' })
+
+    const formData = new FormData()
+    for (const file of files) {
+      console.log('Adding file to FormData:', file.name)
+      formData.append('files', file)
+    }
+
+    try {
+      console.log('Sending POST request to:', `${API_URL}/api/upload`)
+      console.log('FormData prepared, files count:', formData.getAll('files').length)
+
+      // Use fetch instead of axios for better compatibility
+      const fetchResponse = await fetch(`${API_URL}/api/upload`, {
+        method: 'POST',
+        body: formData,
+        // Don't set Content-Type header - browser will set it with boundary
+      })
+
+      if (!fetchResponse.ok) {
+        throw new Error(`Upload failed: ${fetchResponse.status} ${fetchResponse.statusText}`)
+      }
+
+      const response = { data: await fetchResponse.json() }
+      console.log('✅ Upload response received:', response.data)
+
+      const results = response.data.results || []
+      const successCount = results.filter(r => r.status === 'success').length
+      const errorCount = results.filter(r => r.status === 'error').length
+      const totalChunks = response.data.total_chunks
+
+      let status = ''
+      let isError = false
+
+      if (errorCount === 0 && successCount > 0) {
+        status = `✅ ${totalChunks} chunks added from ${successCount} file${successCount > 1 ? 's' : ''}`
+      } else if (successCount > 0 && errorCount > 0) {
+        status = `⚠️ ${successCount} succeeded, ${errorCount} failed`
+        isError = true
+      } else if (errorCount > 0) {
+        const firstError = results.find(r => r.status === 'error')
+        status = `❌ Upload failed: ${firstError?.message || 'Unknown error'}`
+        isError = true
+      } else {
+        status = `❌ No documents were added`
+        isError = true
+      }
+
+      console.log('Setting upload progress:', status)
+      setUploadProgress({
+        total: response.data.total_files,
+        current: response.data.total_files,
+        status: status,
+        results: results,
+        error: isError
+      })
+
+      if (successCount > 0) {
+        console.log('Fetching updated documents list')
+        await fetchDocuments()
+      }
+
+      setTimeout(() => {
+        console.log('Clearing upload progress')
+        setUploadProgress(null)
+        if (successCount > 0 && errorCount === 0) {
+          setShowUpload(false)
+        }
+      }, 5000)
+
+    } catch (error) {
+      console.error('Upload error:', error)
+      setUploadProgress({
+        total: files.length,
+        current: 0,
+        status: `❌ Network error: ${error.message}`,
+        error: true
+      })
+
+      // Auto-clear error after 5 seconds
+      setTimeout(() => {
+        setUploadProgress(null)
+      }, 5000)
+    } finally {
+      console.log('Upload finished, setting uploading to false')
+      setUploading(false)
+    }
+  }, [fetchDocuments])
+
   // Handle paste to upload files (Ctrl+V)
   useEffect(() => {
     const handlePaste = (e) => {
-      // Only handle paste when upload modal is open
       if (!showUpload) return
 
       const items = e.clipboardData?.items
@@ -55,7 +171,7 @@ function App() {
 
     document.addEventListener('paste', handlePaste)
     return () => document.removeEventListener('paste', handlePaste)
-  }, [showUpload])
+  }, [showUpload, handleUpload])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -63,12 +179,22 @@ function App() {
 
     const userMessage = { role: 'user', content: question }
     setMessages(prev => [...prev, userMessage])
-    const currentQuestion = question // Save question before clearing
+    const currentQuestion = question
     setQuestion('')
     setLoading(true)
+    streamingContentRef.current = ''
 
     try {
-      // Start timing
+      // Create a temporary assistant message for streaming
+      const streamingMessage = {
+        role: 'assistant',
+        content: '',
+        isStreaming: true,
+        metadata: {}
+      }
+
+      setMessages(prev => [...prev, streamingMessage])
+
       const startTime = Date.now()
 
       // Use fetch for streaming support
@@ -79,8 +205,7 @@ function App() {
         },
         body: JSON.stringify({
           question: currentQuestion,
-          session_id: `session-${Date.now()}`,
-          agent_type: selectedAgent
+          session_id: `session-${Date.now()}`
         })
       })
 
@@ -92,8 +217,8 @@ function App() {
       const reader = response.body.getReader()
       const decoder = new TextDecoder()
       let buffer = ''
-      let fullContent = ''
       let metadata = {}
+      let lastUpdateTime = Date.now()
 
       while (true) {
         const { done, value } = await reader.read()
@@ -109,46 +234,37 @@ function App() {
               const data = JSON.parse(line.slice(6))
 
               if (data.type === 'token') {
-                fullContent += data.content
-                // Create or update the streaming message
-                setMessages(prev => {
-                  const newMessages = [...prev]
-                  const lastIndex = newMessages.length - 1
+                streamingContentRef.current += data.content
 
-                  // Check if last message is streaming
-                  const hasStreamingMessage = lastIndex >= 0 &&
-                    newMessages[lastIndex].role === 'assistant' &&
-                    newMessages[lastIndex].isStreaming
-
-                  if (!hasStreamingMessage) {
-                    // Create new message on first token
-                    newMessages.push({
-                      role: 'assistant',
-                      content: fullContent,
-                      isStreaming: true,
-                      metadata: {}
-                    })
-                  } else {
-                    // Update existing message
-                    newMessages[lastIndex] = {
-                      ...newMessages[lastIndex],
-                      content: fullContent
+                // Throttle updates to every 100ms for slower, smoother streaming
+                const now = Date.now()
+                if (now - lastUpdateTime >= 100) {
+                  lastUpdateTime = now
+                  // Update the last message with new content
+                  setMessages(prev => {
+                    const newMessages = [...prev]
+                    const lastIndex = newMessages.length - 1
+                    if (lastIndex >= 0 && newMessages[lastIndex].isStreaming) {
+                      newMessages[lastIndex] = {
+                        ...newMessages[lastIndex],
+                        content: streamingContentRef.current
+                      }
                     }
-                  }
-                  return newMessages
-                })
+                    return newMessages
+                  })
+                }
               } else if (data.type === 'complete') {
                 metadata = data.metadata || {}
                 const latency = (Date.now() - startTime) / 1000
 
-                // Update the final message with complete content and metadata
+                // Update the final message with all content
                 setMessages(prev => {
                   const newMessages = [...prev]
                   const lastIndex = newMessages.length - 1
                   if (lastIndex >= 0) {
                     newMessages[lastIndex] = {
                       role: 'assistant',
-                      content: fullContent || data.content,
+                      content: streamingContentRef.current || data.content || '',
                       isStreaming: false,
                       metadata: {
                         method: 'quality_rag_agent',
@@ -173,116 +289,22 @@ function App() {
       }
     } catch (error) {
       console.error('Error:', error)
-      // Add error message
       setMessages(prev => {
         const newMessages = [...prev]
         const lastIndex = newMessages.length - 1
-
         if (lastIndex >= 0 && newMessages[lastIndex].isStreaming) {
-          // Update existing streaming message with error
           newMessages[lastIndex] = {
             role: 'assistant',
             content: `Désolé, une erreur est survenue: ${error.message}`,
             error: true,
             isStreaming: false
           }
-        } else {
-          // Add new error message
-          newMessages.push({
-            role: 'assistant',
-            content: `Désolé, une erreur est survenue: ${error.message}`,
-            error: true
-          })
         }
         return newMessages
       })
     } finally {
       setLoading(false)
-    }
-  }
-
-  const fetchDocuments = async () => {
-    try {
-      const response = await axios.get(`${API_URL}/api/documents`)
-      setDocuments(response.data.documents || [])
-    } catch (error) {
-      console.error('Error fetching documents:', error)
-    }
-  }
-
-  const handleUpload = async (files) => {
-    if (!files || files.length === 0) return
-
-    setUploading(true)
-    setUploadProgress({ total: files.length, current: 0, status: 'Uploading...' })
-
-    const formData = new FormData()
-    for (const file of files) {
-      formData.append('files', file)
-    }
-
-    try {
-      const response = await axios.post(`${API_URL}/api/upload`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      })
-
-      // Analyze results to provide detailed feedback
-      const results = response.data.results || []
-      const successCount = results.filter(r => r.status === 'success').length
-      const errorCount = results.filter(r => r.status === 'error').length
-      const totalChunks = response.data.total_chunks
-
-      let status = ''
-      let isError = false
-
-      if (errorCount === 0 && successCount > 0) {
-        // All files succeeded
-        status = `✅ ${totalChunks} chunks added from ${successCount} file${successCount > 1 ? 's' : ''}`
-      } else if (successCount > 0 && errorCount > 0) {
-        // Partial success
-        status = `⚠️ ${successCount} succeeded, ${errorCount} failed`
-        isError = true
-      } else if (errorCount > 0) {
-        // All failed
-        const firstError = results.find(r => r.status === 'error')
-        status = `❌ Upload failed: ${firstError?.message || 'Unknown error'}`
-        isError = true
-      } else {
-        // No chunks added (shouldn't happen but handle it)
-        status = `❌ No documents were added`
-        isError = true
-      }
-
-      setUploadProgress({
-        total: response.data.total_files,
-        current: response.data.total_files,
-        status: status,
-        results: results,
-        error: isError
-      })
-
-      // Refresh documents list if any succeeded
-      if (successCount > 0) {
-        fetchDocuments()
-      }
-
-      // Clear after 5 seconds (increased to allow reading detailed errors)
-      setTimeout(() => {
-        setUploadProgress(null)
-        if (successCount > 0 && errorCount === 0) {
-          setShowUpload(false)
-        }
-      }, 5000)
-
-    } catch (error) {
-      setUploadProgress({
-        total: files.length,
-        current: 0,
-        status: `❌ Network error: ${error.message}`,
-        error: true
-      })
-    } finally {
-      setUploading(false)
+      streamingContentRef.current = ''
     }
   }
 
@@ -302,7 +324,14 @@ function App() {
 
   const handleFileSelect = (e) => {
     const files = Array.from(e.target.files)
-    handleUpload(files)
+    console.log('📁 Files selected:', files.length)
+    if (files.length > 0) {
+      handleUpload(files)
+    } else {
+      console.log('⚠️ No files selected')
+    }
+    // Reset the input so the same file can be selected again
+    e.target.value = ''
   }
 
   const handleDrop = (e) => {
@@ -336,66 +365,8 @@ function App() {
   return (
     <div className="app">
       <div className="main-container">
-        {/* Sidebar - Agent Selection & Documents */}
+        {/* Sidebar - Documents Only */}
         <aside className="sidebar">
-          {/* Agent Selection */}
-          <div style={{ marginBottom: '2rem' }}>
-            <h2 className="sidebar-title" style={{ marginBottom: '1rem' }}>
-              <Brain size={20} />
-              RAG Agent
-            </h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <button
-                onClick={() => setSelectedAgent('basic')}
-                style={{
-                  width: '100%',
-                  padding: '0.75rem',
-                  background: selectedAgent === 'basic' ? 'var(--accent-blue)' : 'var(--bg-dark)',
-                  color: selectedAgent === 'basic' ? 'white' : 'var(--text-primary)',
-                  border: `1px solid ${selectedAgent === 'basic' ? 'var(--accent-blue)' : 'var(--border-color)'}`,
-                  borderRadius: '0.5rem',
-                  cursor: 'pointer',
-                  fontSize: '0.875rem',
-                  fontWeight: '600',
-                  transition: 'all 0.2s',
-                  textAlign: 'left',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '0.25rem'
-                }}
-              >
-                <span>Basic RAG</span>
-                <span style={{ fontSize: '0.75rem', fontWeight: '400', opacity: 0.8 }}>
-                  Standard retrieval
-                </span>
-              </button>
-              <button
-                onClick={() => setSelectedAgent('advanced')}
-                style={{
-                  width: '100%',
-                  padding: '0.75rem',
-                  background: selectedAgent === 'advanced' ? 'var(--accent-blue)' : 'var(--bg-dark)',
-                  color: selectedAgent === 'advanced' ? 'white' : 'var(--text-primary)',
-                  border: `1px solid ${selectedAgent === 'advanced' ? 'var(--accent-blue)' : 'var(--border-color)'}`,
-                  borderRadius: '0.5rem',
-                  cursor: 'pointer',
-                  fontSize: '0.875rem',
-                  fontWeight: '600',
-                  transition: 'all 0.2s',
-                  textAlign: 'left',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '0.25rem'
-                }}
-              >
-                <span>Advanced RAG</span>
-                <span style={{ fontSize: '0.75rem', fontWeight: '400', opacity: 0.8 }}>
-                  With grading & rewriting
-                </span>
-              </button>
-            </div>
-          </div>
-
           <h2 className="sidebar-title">
             <FileText size={20} />
             Documents
@@ -555,6 +526,7 @@ function App() {
             {messages.length === 0 ? (
               <div className="empty-state">
                 <h2 style={{marginBottom: '2rem', fontSize: '2rem', color: 'var(--text-primary)'}}>Agentic RAG</h2>
+
                 <form className="centered-input-form" onSubmit={handleSubmit}>
                   <input
                     type="text"
@@ -596,80 +568,41 @@ function App() {
                 </form>
               </div>
             ) : (
-              messages.map((msg, idx) => (
-                <div
-                  key={idx}
-                  className={`message ${msg.role}`}
-                >
+              messages.filter(msg => msg.content || !msg.isStreaming).map((msg, idx) => (
+                <div key={idx} className={`message ${msg.role}`}>
                   <div className="message-content">
                     {msg.role === 'assistant' ? (
                       <>
-                        <ReactMarkdown
-                          components={{
-                            code({node, inline, className, children, ...props}) {
-                              const match = /language-(\w+)/.exec(className || '')
-                              return !inline && match ? (
-                                <SyntaxHighlighter
-                                  style={vscDarkPlus}
-                                  language={match[1]}
-                                  PreTag="div"
-                                  {...props}
-                                >
-                                  {String(children).replace(/\n$/, '')}
-                                </SyntaxHighlighter>
-                              ) : (
-                                <code className={className} {...props}>
-                                  {children}
-                                </code>
-                              )
-                            }
-                          }}
-                        >
-                          {msg.content}
-                        </ReactMarkdown>
-                        {msg.isStreaming && (
-                          <span className="cursor-blink" style={{
-                            display: 'inline-block',
-                            width: '2px',
-                            height: '1.2em',
-                            backgroundColor: 'var(--accent-blue)',
-                            marginLeft: '2px',
-                            animation: 'blink 1s infinite'
-                          }}>▊</span>
+                        {msg.content && (
+                          <ReactMarkdown
+                            components={{
+                              code({node, inline, className, children, ...props}) {
+                                const match = /language-(\w+)/.exec(className || '')
+                                return !inline && match ? (
+                                  <SyntaxHighlighter
+                                    style={vscDarkPlus}
+                                    language={match[1]}
+                                    PreTag="div"
+                                    {...props}
+                                  >
+                                    {String(children).replace(/\n$/, '')}
+                                  </SyntaxHighlighter>
+                                ) : (
+                                  <code className={className} {...props}>
+                                    {children}
+                                  </code>
+                                )
+                              }
+                            }}
+                          >
+                            {msg.content}
+                          </ReactMarkdown>
                         )}
                       </>
                     ) : (
                       msg.content
                     )}
                   </div>
-                  {msg.metadata && (
-                    <div className="message-metadata">
-                      <span
-                        className="method-badge"
-                        style={{backgroundColor: getMethodColor(msg.metadata.method)}}
-                      >
-                        {getMethodLabel(msg.metadata.method)}
-                      </span>
-                      <span className="metadata-item">
-                        {msg.metadata.latency.toFixed(2)}s
-                      </span>
-                      <span className="metadata-item">
-                        €{msg.metadata.cost.toFixed(3)}
-                      </span>
-                      {msg.metadata.fromCache && (
-                        <span className="cache-badge">
-                          <Database size={12} />
-                          Cached
-                        </span>
-                      )}
-                      {msg.metadata.fallbackUsed && (
-                        <span className="cache-badge" style={{background: 'var(--accent-orange)'}}>
-                          <Globe size={12} />
-                          Web Search
-                        </span>
-                      )}
-                    </div>
-                  )}
                 </div>
               ))
             )}
@@ -682,26 +615,29 @@ function App() {
                 </div>
               </div>
             )}
+            <div ref={messagesEndRef} />
           </div>
 
           {messages.length > 0 && (
-            <form className="input-form" onSubmit={handleSubmit}>
-            <input
-              type="text"
-              value={question}
-              onChange={(e) => setQuestion(e.target.value)}
-              placeholder="Ask a question..."
-              disabled={loading}
-              className="input-field"
-            />
-            <button
-              type="submit"
-              disabled={loading || !question.trim()}
-              className="send-button"
-            >
-              <Send size={20} />
-            </button>
-          </form>
+            <div>
+              <form className="input-form" onSubmit={handleSubmit}>
+                <input
+                  type="text"
+                  value={question}
+                  onChange={(e) => setQuestion(e.target.value)}
+                  placeholder="Ask a question..."
+                  disabled={loading}
+                  className="input-field"
+                />
+                <button
+                  type="submit"
+                  disabled={loading || !question.trim()}
+                  className="send-button"
+                >
+                  <Send size={20} />
+                </button>
+              </form>
+            </div>
           )}
         </main>
       </div>

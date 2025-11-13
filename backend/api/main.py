@@ -6,7 +6,7 @@ Pure RAG implementation without business metrics
 
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel
 from typing import Optional, AsyncGenerator, List
 import os
@@ -247,6 +247,7 @@ async def upload_documents(files: List[UploadFile] = File(...)):
 
     for file in files:
         try:
+            print(f"📄 Processing file: {file.filename}")
             # Save uploaded file temporarily
             with tempfile.NamedTemporaryFile(delete=False, suffix=Path(file.filename).suffix) as tmp_file:
                 content = await file.read()
@@ -254,29 +255,38 @@ async def upload_documents(files: List[UploadFile] = File(...)):
                 tmp_file_path = tmp_file.name
                 file_size = len(content)
 
+            print(f"✅ File saved to temp: {tmp_file_path}, size: {file_size} bytes")
+
             # Load and process based on file type
             file_ext = Path(file.filename).suffix.lower()
             documents = []
 
+            print(f"🔍 Loading {file_ext} file...")
             if file_ext == ".pdf":
                 from langchain_community.document_loaders import PyPDFLoader
                 loader = PyPDFLoader(tmp_file_path)
                 documents = loader.load()
+                print(f"✅ PDF loaded: {len(documents)} pages")
             elif file_ext in [".txt", ".md"]:
                 from langchain_community.document_loaders import TextLoader
                 loader = TextLoader(tmp_file_path)
                 documents = loader.load()
+                print(f"✅ Text loaded: {len(documents)} documents")
             elif file_ext in [".docx", ".doc"]:
                 from langchain_community.document_loaders import UnstructuredWordDocumentLoader
                 loader = UnstructuredWordDocumentLoader(tmp_file_path)
                 documents = loader.load()
+                print(f"✅ DOCX loaded: {len(documents)} documents")
             else:
                 # Try as text file
                 loader = TextLoader(tmp_file_path)
                 documents = loader.load()
+                print(f"✅ Text loaded: {len(documents)} documents")
 
             # Split documents into chunks
+            print(f"✂️ Splitting into chunks...")
             chunks = text_splitter.split_documents(documents)
+            print(f"✅ Created {len(chunks)} chunks")
 
             # Add metadata
             for chunk in chunks:
@@ -286,7 +296,9 @@ async def upload_documents(files: List[UploadFile] = File(...)):
 
             # Add to vectorstore
             if chunks:
+                print(f"💾 Adding {len(chunks)} chunks to vectorstore...")
                 vectorstore.add_documents(chunks)
+                print(f"✅ Chunks added to vectorstore")
                 total_chunks += len(chunks)
 
                 # Add to document list
@@ -327,11 +339,18 @@ async def upload_documents(files: List[UploadFile] = File(...)):
             except:
                 pass
 
-    return {
-        "results": results,
-        "total_files": len(files),
-        "total_chunks": total_chunks
-    }
+    # Return with explicit headers to prevent buffering
+    return JSONResponse(
+        content={
+            "results": results,
+            "total_files": len(files),
+            "total_chunks": total_chunks
+        },
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no"  # Disable proxy buffering
+        }
+    )
 
 
 @app.delete("/api/documents")
