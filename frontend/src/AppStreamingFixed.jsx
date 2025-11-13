@@ -58,7 +58,16 @@ function App() {
 
     try {
       const response = await axios.post(`${API_URL}/api/upload`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 60000, // 60 seconds timeout
+        onUploadProgress: (progressEvent) => {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+          setUploadProgress({
+            total: files.length,
+            current: 0,
+            status: `Uploading... ${percentCompleted}%`
+          })
+        }
       })
 
       const results = response.data.results || []
@@ -103,10 +112,23 @@ function App() {
       }, 5000)
 
     } catch (error) {
+      console.error('Upload error:', error)
+      let errorMessage = 'Unknown error'
+
+      if (error.code === 'ECONNABORTED') {
+        errorMessage = 'Upload timeout - file too large or slow connection'
+      } else if (error.response) {
+        errorMessage = `Server error: ${error.response.status} - ${error.response.data?.detail || error.response.statusText}`
+      } else if (error.request) {
+        errorMessage = 'No response from server - check backend is running'
+      } else {
+        errorMessage = error.message
+      }
+
       setUploadProgress({
         total: files.length,
         current: 0,
-        status: `❌ Network error: ${error.message}`,
+        status: `❌ ${errorMessage}`,
         error: true
       })
     } finally {
