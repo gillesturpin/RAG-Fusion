@@ -9,10 +9,12 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import './App.css'
 
-// Dynamic API URL for production (Hugging Face uses port 7860 for frontend, 8000 for backend)
+// Dynamic API URL
+// - Local dev: WSL2 IP address on port 8000
+// - Production (HF): Use relative URL, nginx proxies /api to backend on port 8000
 const API_URL = window.location.hostname === 'localhost'
-  ? 'http://172.31.245.104:8000'  // Local development
-  : `${window.location.protocol}//${window.location.hostname}:8000` // Production
+  ? 'http://172.31.245.104:8000'  // Local development (WSL2)
+  : ''  // Production: use relative URLs, nginx handles proxying
 
 function App() {
   const [question, setQuestion] = useState('')
