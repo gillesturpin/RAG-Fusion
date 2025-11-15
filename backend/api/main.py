@@ -277,6 +277,11 @@ async def upload_documents(files: List[UploadFile] = File(...)):
                 loader = UnstructuredWordDocumentLoader(tmp_file_path)
                 documents = loader.load()
                 print(f"✅ DOCX loaded: {len(documents)} documents")
+            elif file_ext == ".ipynb":
+                from langchain_community.document_loaders import NotebookLoader
+                loader = NotebookLoader(tmp_file_path, include_outputs=True, max_output_length=20, remove_newline=True)
+                documents = loader.load()
+                print(f"✅ Notebook loaded: {len(documents)} cells")
             else:
                 # Try as text file
                 loader = TextLoader(tmp_file_path)

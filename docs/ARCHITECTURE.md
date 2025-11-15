@@ -1,299 +1,351 @@
-# 🏗️ Architecture des Agents RAG
+# 🏗️ Architecture RAG Agent
 
 ## Vue d'ensemble
 
-Ce projet implémente deux architectures RAG distinctes basées sur les tutoriels officiels LangChain/LangGraph. Chaque agent a ses propres caractéristiques et cas d'usage optimaux.
+Ce projet implémente un **RAG Agent** basé sur le tutoriel officiel LangChain ([RAG Agent Tutorial](https://python.langchain.com/docs/tutorials/rag_agent/)).
 
-## 📊 Comparaison des Architectures
+## 📊 Architecture Globale
 
 ```
 ┌─────────────────────────────────────────┐
 │            User Question                 │
 └─────────────────────────────────────────┘
                     │
-       ┌────────────┴────────────┐
-       ▼                         ▼
-┌──────────────┐          ┌──────────────┐
-│  RAG Agent   │          │ Advanced RAG │
-│              │          │    Agent     │
-└──────────────┘          └──────────────┘
-       │                         │
-       ▼                         ▼
-   [Simple]                 [Complexe]
-   [Rapide]                 [Précis]
+                    ▼
+          ┌──────────────────┐
+          │    RAG Agent     │
+          │  (with Memory)   │
+          └──────────────────┘
+                    │
+                    ▼
+             [Intelligent]
+             [k=4 docs]
+            [Conversational]
 ```
 
 ---
 
-## 1️⃣ RAG Agent (Standard)
+## 🔧 RAG Agent - Architecture Détaillée
 
-### Architecture
+### Flow Diagram
 ```
 User Question
+      │
+      ▼
+┌─────────────────────────┐
+│   LangGraph Workflow    │
+│   (with InMemorySaver)  │
+└─────────────────────────┘
       │
       ▼
 ┌─────────────────┐
 │   LLM Router    │ ← Décide si retrieval nécessaire
+│  (Claude 4.5)   │    via tool calling
 └─────────────────┘
       │
-      ├─── Oui ──→ ┌──────────────┐
-      │            │   Retriever   │
-      │            └──────────────┘
-      │                   │
-      │                   ▼
-      │            ┌──────────────┐
-      │            │   Documents  │
-      │            └──────────────┘
-      │                   │
-      └─── Non ───────────┤
-                          ▼
-                   ┌──────────────┐
-                   │   Generate   │
-                   │    Answer    │
-                   └──────────────┘
+      ├─── Tool Call ──→ ┌──────────────┐
+      │                  │   Retriever   │
+      │                  │    (k=4)      │
+      │                  └──────────────┘
+      │                         │
+      │                         ▼
+      │                  ┌──────────────┐
+      │                  │   Documents  │
+      │                  │  + Metadata  │
+      │                  └──────────────┘
+      │                         │
+      └─── Direct ──────────────┤
+                                ▼
+                         ┌──────────────┐
+                         │   Generate   │
+                         │    Answer    │
+                         └──────────────┘
+                                │
+                                ▼
+                         ┌──────────────┐
+                         │  Save State  │
+                         │  (Memory)    │
+                         └──────────────┘
 ```
 
-### Caractéristiques
-- **Base** : `create_agent()` de LangChain
-- **Retrieval** : Optionnel (LLM décide)
-- **Flow** : Question → Route → (Retrieve?) → Generate
-- **Vitesse** : ⚡ Rapide
-- **Complexité** : Simple
+### Caractéristiques Principales
 
-### Implémentation
+- **Framework** : LangGraph `StateGraph`
+- **LLM** : Claude Sonnet 4.5 (`claude-sonnet-4-5-20250929`)
+- **Retrieval** : Optionnel (LLM décide via tool calling)
+- **Documents** : k=4 (similarity search)
+- **Mémoire** : InMemorySaver (conversation persistante par thread_id)
+- **Streaming** : Support SSE (Server-Sent Events)
+- **Flow** : Question → Route → (Retrieve?) → Generate → Save
+
+### Implémentation Core
+
+**Fichier** : `backend/rags/rag_agent.py`
+
 ```python
-# Création de l'agent avec tool
-agent = create_agent(llm, [retriever_tool], prompt)
+class RAGAgent:
+    def __init__(self, vectorstore, checkpointer=None):
+        # Use InMemorySaver for conversation memory
+        self.checkpointer = checkpointer or InMemorySaver()
 
-# Exécution
-result = agent.invoke({
-    "messages": [{"role": "user", "content": question}]
-})
+        # Create retrieve tool
+        @tool
+        def retrieve(query: str):
+            """Retrieve information related to a query."""
+            retrieved_docs = self.vectorstore.similarity_search(query, k=4)
+            # Format documents with metadata
+            serialized = "\n\n".join(
+                f"Source: {doc.metadata}\nContent: {doc.page_content}"
+                for doc in retrieved_docs
+            )
+            return serialized
+
+        # Bind tools to model
+        self.model_with_tools = self.model.bind_tools([retrieve])
+
+        # Build LangGraph workflow
+        self.graph = self._build_graph()
+
+    def _build_graph(self):
+        workflow = StateGraph(MessagesState)
+
+        # Add nodes
+        workflow.add_node("agent", self._call_model)
+        workflow.add_node("tools", ToolNode([retrieve]))
+
+        # Conditional routing
+        def should_continue(state):
+            last_message = state["messages"][-1]
+            if hasattr(last_message, 'tool_calls') and last_message.tool_calls:
+                return "tools"  # LLM wants to retrieve
+            return END  # LLM answers directly
+
+        workflow.add_conditional_edges("agent", should_continue)
+        workflow.add_edge("tools", "agent")  # Loop back after retrieval
+
+        # Compile with memory
+        return workflow.compile(checkpointer=self.checkpointer)
+
+    def invoke(self, question: str, thread_id: str = None):
+        config = {"configurable": {"thread_id": thread_id}} if thread_id else {}
+        result = self.graph.invoke(
+            {"messages": [HumanMessage(content=question)]},
+            config
+        )
+        return {
+            "answer": result["messages"][-1].content,
+            "messages": result["messages"],
+            "used_retrieval": any(msg.type == "tool" for msg in result["messages"]),
+            "thread_id": thread_id
+        }
 ```
 
-### Quand l'utiliser ?
-- ✅ Questions simples et directes
-- ✅ Besoin de réponses rapides
-- ✅ Le LLM peut déjà connaître la réponse
-- ✅ Contexte général
+### Nodes du Graph
 
-### Output
+#### 1. **agent** (LLM Router)
+- Reçoit la question + historique (mémoire)
+- Décide : retrieval nécessaire ou non ?
+- Retourne : réponse directe OU appel au tool `retrieve`
+
+#### 2. **tools** (Retriever)
+- Exécute `similarity_search(k=4)` sur ChromaDB
+- Formate les documents avec métadonnées
+- Retourne le contexte au LLM
+
+#### 3. **Conditional Edge**
+- Si `tool_calls` présent → va vers `tools`
+- Sinon → END (réponse finale)
+
+### Mémoire Conversationnelle
+
+**InMemorySaver** stocke l'historique par `thread_id` :
+
+```python
+# Premier message (thread-1)
+agent.invoke("My name is Alice", thread_id="thread-1")
+
+# Deuxième message (même thread)
+agent.invoke("What is my name?", thread_id="thread-1")
+# Réponse : "Your name is Alice" ✅
+
+# Nouveau thread
+agent.invoke("What is my name?", thread_id="thread-2")
+# Réponse : "I don't know" (pas de mémoire) ✅
+```
+
+### Message Trimming
+
+Pour éviter de dépasser la limite de contexte :
+
+```python
+def trim_messages(messages):
+    """Keep only the last 10 messages to fit context window."""
+    if len(messages) <= 10:
+        return messages
+    # Keep first (system) and last 9 messages
+    return [messages[0]] + messages[-9:]
+```
+
+### Prompt System
+
+```python
+SystemMessage(
+    "You have access to a tool that retrieves context from documents. "
+    "Use the tool to help answer user queries. "
+    "IMPORTANT: Provide COMPLETE and COMPREHENSIVE answers with ALL details. "
+    "Do not omit any information. Use proper Markdown formatting."
+)
+```
+
+### Cas d'Usage
+
+✅ **Optimal pour** :
+- Questions nécessitant contexte documentaire
+- Conversations multi-tours
+- Applications nécessitant mémoire
+- Chatbots conversationnels
+- Questions mixtes (in/out context)
+
+❌ **Moins optimal pour** :
+- Questions ultra-simples (overhead du graph)
+- Batch processing sans mémoire
+- Cas nécessitant grading strict des documents
+
+### Output Format
+
 ```json
 {
-  "answer": "La réponse générée",
-  "messages": [...],  // Historique
-  "used_retrieval": true/false
+  "answer": "La réponse générée avec contexte",
+  "messages": [
+    {"role": "user", "content": "Question"},
+    {"role": "assistant", "content": "Tool call"},
+    {"role": "tool", "content": "Documents..."},
+    {"role": "assistant", "content": "Réponse finale"}
+  ],
+  "used_retrieval": true,
+  "thread_id": "thread-abc123"
 }
-```
-
----
-
-## 2️⃣ Advanced RAG Agent (avec Grading)
-
-### Architecture
-```
-User Question
-      │
-      ▼
-┌─────────────────┐
-│    Retrieve     │ ← Toujours récupère
-└─────────────────┘
-      │
-      ▼
-┌─────────────────┐
-│     Grade       │ ← Note la pertinence
-│   Documents     │   (binary: yes/no)
-└─────────────────┘
-      │
-      ├─── Relevant ──→ Generate
-      │
-      └─── Not Relevant
-            │
-            ▼
-      ┌─────────────────┐
-      │    Rewrite      │ ← Reformule
-      │    Question     │   la question
-      └─────────────────┘
-            │
-            ▼
-      [Retry Retrieval]
-            │
-            ▼
-        Generate
-```
-
-### Caractéristiques
-- **Base** : `StateGraph` de LangGraph
-- **Retrieval** : Toujours effectué
-- **Grading** : Évalue la pertinence des docs
-- **Rewriting** : Reformule si docs non pertinents
-- **Flow** : Question → Retrieve → Grade → (Rewrite?) → Generate
-- **Vitesse** : 🐢 Plus lent (multi-étapes)
-- **Complexité** : Avancée
-
-### État du Graph
-```python
-class AgentState(TypedDict):
-    messages: List[BaseMessage]
-    documents: List[Document]
-    question: str
-    rewrite_count: int
-```
-
-### Nodes du StateGraph
-
-#### 1. **retrieve_documents**
-```python
-def retrieve_documents(state):
-    # Récupère toujours des documents
-    docs = retriever.invoke(state["question"])
-    return {"documents": docs}
-```
-
-#### 2. **grade_documents**
-```python
-def grade_documents(state):
-    # Note chaque document (relevant: yes/no)
-    relevant_docs = []
-    for doc in state["documents"]:
-        score = grader.invoke({
-            "question": state["question"],
-            "document": doc.page_content
-        })
-        if score["binary_score"] == "yes":
-            relevant_docs.append(doc)
-```
-
-#### 3. **rewrite_question**
-```python
-def rewrite_question(state):
-    # Reformule pour mieux matcher
-    new_question = rewriter.invoke({
-        "question": state["question"]
-    })
-    return {"question": new_question}
-```
-
-#### 4. **generate_answer**
-```python
-def generate_answer(state):
-    # Génère avec les docs pertinents
-    answer = llm.invoke({
-        "context": state["documents"],
-        "question": state["question"]
-    })
-```
-
-### Conditional Edges
-```python
-# Décide si les docs sont pertinents
-def decide_to_generate(state):
-    if has_relevant_docs(state):
-        return "generate"  # → generate_answer
-    else:
-        return "rewrite"   # → rewrite_question
-```
-
-### Quand l'utiliser ?
-- ✅ Questions complexes ou ambiguës
-- ✅ Besoin de haute précision
-- ✅ Domaines spécialisés
-- ✅ Documents de qualité variable
-- ✅ Questions mal formulées possibles
-
-### Output
-```json
-{
-  "answer": "La réponse générée",
-  "messages": [...],
-  "num_rewrites": 0-2  // Nombre de reformulations
-}
-```
-
----
-
-## 🔄 Flux de Décision
-
-### RAG Agent (Simple)
-```
-Question → LLM décide
-├─ "Je connais" → Répond directement
-└─ "J'ai besoin de docs" → Retrieve → Generate
-```
-
-### Advanced RAG Agent
-```
-Question → Retrieve (toujours)
-├─ Docs pertinents → Generate
-└─ Docs non pertinents → Rewrite → Retrieve
-    ├─ Docs pertinents → Generate
-    └─ Toujours pas → Generate avec ce qu'on a
 ```
 
 ---
 
 ## 📈 Métriques de Performance
 
-| Métrique | RAG Agent | Advanced RAG |
-|----------|-----------|--------------|
-| **Latence moyenne** | 2-5s | 5-12s |
-| **Appels LLM** | 1-2 | 3-5 |
-| **Tokens utilisés** | Moins | Plus |
-| **Précision** | Bonne | Excellente |
-| **Gestion ambiguïté** | Basique | Avancée |
+| Métrique | Valeur Typique |
+|----------|----------------|
+| **Latence moyenne** | 2-5s |
+| **Appels LLM par requête** | 1-2 |
+| **Documents récupérés** | k=4 |
+| **Mémoire max** | 10 messages |
+| **Coût estimé par requête** | ~$0.001 |
 
----
+### Breakdown Latence
 
-## 🎯 Choix de l'Architecture
-
-### Utilisez **RAG Agent** pour :
-- 🚀 Applications temps réel
-- 💬 Chatbots généralistes
-- 📱 Applications mobiles
-- 💰 Optimisation des coûts
-
-### Utilisez **Advanced RAG** pour :
-- 🔬 Recherche académique
-- ⚖️ Domaines juridiques
-- 🏥 Applications médicales
-- 📊 Analyse de données complexes
+- **Sans retrieval** : ~1-2s (réponse directe)
+- **Avec retrieval** : ~3-5s (similarity search + génération)
+- **Conversation** : +0.5s (chargement historique)
 
 ---
 
 ## 🔧 Configuration
 
-### Variables d'environnement communes
+### Variables d'Environnement
+
 ```bash
-ANTHROPIC_API_KEY=sk-ant-...  # LLM principal
+# Requis
+ANTHROPIC_API_KEY=sk-ant-...  # Claude Sonnet 4.5
+
+# Optionnel
+TAVILY_API_KEY=tvly-...  # Web search (non utilisé actuellement)
 ```
 
-### Paramètres ajustables
+### Paramètres Ajustables
 
-**RAG Agent:**
+**Dans `rag_agent.py` :**
+
 ```python
-# Température du LLM (créativité)
-temperature = 0.7
+# LLM Configuration
+model = "claude-sonnet-4-5-20250929"
+model_provider = "anthropic"
 
-# Nombre de docs à récupérer
-k = 4
+# Retrieval
+k = 4  # Nombre de documents à récupérer
+
+# Memory
+max_messages = 10  # Historique conservé par conversation
+
+# Embeddings
+embedding_model = "sentence-transformers/all-MiniLM-L6-v2"
 ```
 
-**Advanced RAG:**
+**Dans `api/main.py` :**
+
 ```python
-# Seuil de pertinence (grading)
-relevance_threshold = 0.7
+# Text Splitting (upload)
+chunk_size = 2000
+chunk_overlap = 400
 
-# Max reformulations
-max_rewrites = 2
-
-# Nombre de docs par retrieve
-k = 6
+# Streaming
+word_delay = 0.03  # 30ms entre chaque mot (effet visuel)
 ```
 
 ---
 
 ## 📚 Ressources
 
-- [Tutorial RAG Agent](https://python.langchain.com/docs/tutorials/rag_agent/)
-- [Tutorial Advanced RAG](https://python.langchain.com/docs/tutorials/langgraph/agentic_rag/)
-- [LangGraph Documentation](https://langchain-ai.github.io/langgraph/)
+### Documentation Officielle
+- [LangChain RAG Agent Tutorial](https://python.langchain.com/docs/tutorials/rag_agent/) - Base de ce projet
+- [LangGraph Documentation](https://langchain-ai.github.io/langgraph/) - Framework utilisé
+- [Anthropic Claude API](https://docs.anthropic.com/) - LLM provider
+
+### Fichiers du Projet
+- `backend/rags/rag_agent.py` - Implémentation core
+- `backend/api/main.py` - FastAPI endpoints
+- `test_memory.py` - Tests de la mémoire conversationnelle
+
+---
+
+## 🧪 Tests
+
+### Test de la Mémoire
+
+```bash
+python test_memory.py
+```
+
+**Résultats attendus** :
+- ✅ Thread différent → pas de mémoire
+- ✅ Même thread → mémoire fonctionnelle
+- ✅ Trimming → garde 10 derniers messages
+
+### Test de l'API
+
+```bash
+# Lancer le serveur
+cd backend/api && python main.py
+
+# Tester (autre terminal)
+curl -X POST http://localhost:8000/api/rag_agent \
+  -H "Content-Type: application/json" \
+  -d '{"question": "What is RAG?", "thread_id": "test-123"}'
+```
+
+---
+
+## 🚀 Roadmap
+
+### Actuellement Implémenté
+- ✅ RAG Agent avec tool calling
+- ✅ Mémoire conversationnelle (InMemorySaver)
+- ✅ Streaming SSE
+- ✅ Upload documents (PDF/TXT/MD/DOCX)
+- ✅ Message trimming
+- ✅ ChromaDB vectorstore
+
+### Améliorations Possibles
+- ⏳ Agentic RAG avec grading (comme dans tutoriel avancé)
+- ⏳ PostgreSQL checkpointer (persistance DB)
+- ⏳ Hybrid search (dense + sparse)
+- ⏳ Citation tracking
+- ⏳ Token usage tracking réel
+- ⏳ Métriques d'évaluation (RAGAS)

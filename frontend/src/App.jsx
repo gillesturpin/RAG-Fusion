@@ -418,13 +418,13 @@ function App() {
                 Drag & drop files or click to browse
               </p>
               <p style={{fontSize: '0.75rem', color: 'var(--text-secondary)'}}>
-                PDF, TXT, MD, DOCX
+                PDF, TXT, MD, DOCX, IPYNB
               </p>
               <input
                 id="file-upload"
                 type="file"
                 multiple
-                accept=".pdf,.txt,.md,.docx,.doc"
+                accept=".pdf,.txt,.md,.docx,.doc,.ipynb"
                 onChange={handleFileSelect}
                 style={{display: 'none'}}
               />

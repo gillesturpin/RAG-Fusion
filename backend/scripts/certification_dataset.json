@@ -1,0 +1,116 @@
+{
+  "metadata": {
+    "generated_at": "2025-11-15T14:25:35.768280",
+    "num_questions": 10,
+    "num_documents": 15,
+    "total_chunks": 758,
+    "categories": {
+      "LangChain Fundamentals": 1,
+      "Business Strategy": 1,
+      "Game Development Strategy": 1,
+      "GitHub Actions": 1,
+      "Gaming Strategy": 1,
+      "Git Version Control": 1,
+      "Git Workflow": 1,
+      "Market Analysis": 1,
+      "Spark Data Analysis": 1,
+      "Python Lists and Slicing": 1
+    },
+    "difficulties": {
+      "medium": 9,
+      "hard": 1
+    }
+  },
+  "questions": [
+    {
+      "question": "Explain how task decomposition contributes to problem-solving in LangChain and describe two specific ways it enables more complex reasoning in AI applications.",
+      "ground_truth": "Task decomposition breaks large, complex tasks into smaller, more manageable subtasks, which is crucial for AI agents handling multi-step queries. In LangChain, this technique allows language models to systematically approach complex problems by breaking them down into discrete steps, enabling more sophisticated reasoning and processing across different types of tasks.",
+      "difficulty": "medium",
+      "category": "LangChain Fundamentals",
+      "id": 1,
+      "source_file": "test_document.txt",
+      "generated_at": "2025-11-15T14:25:09.452788"
+    },
+    {
+      "question": "What is the estimated potential ROI for Ubisoft's proposed multi-platform premium strategy with multilingual support?",
+      "ground_truth": "Based on the analysis, the proposed premium multi-platform strategy with multilingual support could generate 3-5x more engagement compared to Ubisoft's current average. This significant potential increase in engagement would justify the strategic investment in these proposed approaches.",
+      "difficulty": "medium",
+      "category": "Business Strategy",
+      "id": 2,
+      "source_file": "Projet Steam Ubisoft - Structure complète réorganisée.pdf",
+      "generated_at": "2025-11-15T14:25:11.632127"
+    },
+    {
+      "question": "What are the three key steps in the immediate action plan for developing a new game strategy?",
+      "ground_truth": "The immediate action plan involves three critical steps: 1) Validating the concept on identified Racing/Sports segments, 2) Developing a multi-platform approach from the initial design stage, and 3) Ensuring localization in a minimum of 6 languages.",
+      "difficulty": "medium",
+      "category": "Game Development Strategy",
+      "id": 3,
+      "source_file": "Projet Steam Ubisoft - Structure complète réorganisée.pdf",
+      "generated_at": "2025-11-15T14:25:13.931025"
+    },
+    {
+      "question": "Describe the key steps in the GitHub Actions workflow configuration shown in the CI example, explaining the purpose of each step in the test job.",
+      "ground_truth": "The GitHub Actions workflow is configured to run on push and pull request events for main and develop branches. The test job runs on Ubuntu and includes steps to checkout code, setup Node.js version 16, install dependencies using npm ci, run tests with npm test, and build the project using npm run build.",
+      "difficulty": "medium",
+      "category": "GitHub Actions",
+      "id": 4,
+      "source_file": "Guide Complet Git & GitHub - Version PDF.pdf",
+      "generated_at": "2025-11-15T14:25:17.261458"
+    },
+    {
+      "question": "Describe the potential ROI and strategic positioning proposed in the analysis for a multi-platform gaming product strategy.",
+      "ground_truth": "The analysis suggests a premium multi-platform strategy with multilingual support could generate 3-5x more engagement compared to Ubisoft's current average. This positioning would justify strategic investments in developing a competitive ecosystem against Valve. The estimated return on investment indicates significant potential for enhanced market performance.",
+      "difficulty": "medium",
+      "category": "Gaming Strategy",
+      "id": 5,
+      "source_file": "Projet Steam Ubisoft - Structure complète réorganisée.pdf",
+      "generated_at": "2025-11-15T14:25:20.250765"
+    },
+    {
+      "question": "Describe the different actions you can take when using interactive rebase with 'git rebase -i HEAD~3', and explain what each action does.",
+      "ground_truth": "When using interactive rebase, you can modify commits by replacing 'pick' with different commands. 'reword' allows changing the commit message, 'edit' enables modifying the commit itself, 'squash' merges the commit with the previous one, and 'drop' removes the commit entirely from the history.",
+      "difficulty": "medium",
+      "category": "Git Version Control",
+      "id": 6,
+      "source_file": "Guide Complet Git & GitHub - Version PDF.pdf",
+      "generated_at": "2025-11-15T14:25:23.018784"
+    },
+    {
+      "question": "Describe the sequence of Git commands used to create and push a new feature branch with multiple commits in this workflow.",
+      "ground_truth": "The workflow involves creating a new feature branch and making multiple commits with specific messages. The developer creates new files (login.js and logout.js), modifies an existing file (main.py), stages and commits each change with descriptive commit messages, and then pushes the branch to GitHub using 'git push -u origin feature/nouvelle-fonction'.",
+      "difficulty": "medium",
+      "category": "Git Workflow",
+      "id": 7,
+      "source_file": "Guide Complet Git & GitHub - Version PDF.pdf",
+      "generated_at": "2025-11-15T14:25:25.944972"
+    },
+    {
+      "question": "Describe the four key phases of Ubisoft's Steam market analysis project and explain the primary objective of each phase.",
+      "ground_truth": "The Steam market analysis project consists of four phases: Phase 1 (Exploration of Data) involves examining the Steam dataset structure, verifying data quality, and understanding platform evolution. Phase 2 (Data Preparation) focuses on extracting nested data like platforms and prices, cleaning data, and initial price distribution analysis. Phase 3 (Macro Analyses) covers competitive positioning of publishers, market trends, promotion strategies, and localization factors. Phase 4 (Genre Analysis) examines dominant game genres, publisher specializations, and pricing strategies by genre.",
+      "difficulty": "hard",
+      "category": "Market Analysis",
+      "id": 8,
+      "source_file": "Projet Steam Ubisoft - Structure complète réorganisée.pdf",
+      "generated_at": "2025-11-15T14:25:29.775970"
+    },
+    {
+      "question": "What are the key steps in analyzing game genre performance in this Spark DataFrame analysis, and what specific metrics are calculated for each genre?",
+      "ground_truth": "The analysis involves creating a list of genre keywords, counting games per genre, and then performing a detailed performance analysis. The performance analysis calculates metrics including number of games, average positive reviews, average price, and average review ratio for each main genre (Action, Indie, Strategy, RPG, Simulation, Sports).",
+      "difficulty": "medium",
+      "category": "Spark Data Analysis",
+      "id": 9,
+      "source_file": "Projet Steam Ubisoft - Structure complète réorganisée.pdf",
+      "generated_at": "2025-11-15T14:25:32.944031"
+    },
+    {
+      "question": "Explain how list slicing works in Python, specifically describing the syntax and how start and end indices are interpreted when creating a slice.",
+      "ground_truth": "List slicing in Python uses the syntax slice[start_index : end_index]. The start_index is included in the slice, while the end_index is excluded. If no start_index is specified, the slice defaults to index 0, and if no end_index is specified, the slice will extend to the last index of the list.",
+      "difficulty": "medium",
+      "category": "Python Lists and Slicing",
+      "id": 10,
+      "source_file": "03-Data_types.ipynb",
+      "generated_at": "2025-11-15T14:25:35.768183"
+    }
+  ]
+}
