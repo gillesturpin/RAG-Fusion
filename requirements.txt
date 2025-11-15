@@ -6,9 +6,9 @@ pydantic==2.9.2
 
 # LangChain - UPGRADED TO 1.0+ for RAGAS compatibility
 langchain==1.0.7
-langchain-community==1.0.4
+langchain-community==0.4.1
 langchain-core==1.0.5
-langgraph==0.2.62
+langgraph==1.0.3
 langchain-anthropic==1.0.4
 langchain-text-splitters==1.0.0
 

@@ -1,12 +1,13 @@
 # Multi-stage build for full-stack app on Hugging Face Spaces
 FROM python:3.12-slim
 
-# Install Node.js, nginx, and system dependencies
+# Install Node.js, nginx, git, and system dependencies
 RUN apt-get update && apt-get install -y \
     curl \
     gcc \
     g++ \
     nginx \
+    git \
     && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*

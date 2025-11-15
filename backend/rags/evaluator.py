@@ -11,8 +11,11 @@ from ragas.metrics import (
     answer_relevancy,       # Generation
     answer_correctness      # Generation (nécessite ground_truth)
 )
+from ragas.llms import LangchainLLMWrapper
+from ragas.embeddings import LangchainEmbeddingsWrapper
 from datasets import Dataset
 from langchain_anthropic import ChatAnthropic
+from langchain_huggingface import HuggingFaceEmbeddings
 import logging
 
 logger = logging.getLogger(__name__)
@@ -37,10 +40,19 @@ class CertificationEvaluator:
         self.rag_agent = rag_agent
 
         # LLM pour RAGAS (utilise Claude au lieu d'OpenAI)
-        self.llm = ChatAnthropic(
+        langchain_llm = ChatAnthropic(
             model="claude-3-5-haiku-20241022",  # Haiku pour économie
             temperature=0
         )
+
+        # Embeddings pour RAGAS (mêmes que le RAG)
+        langchain_embeddings = HuggingFaceEmbeddings(
+            model_name="sentence-transformers/all-MiniLM-L6-v2"
+        )
+
+        # Wrap pour RAGAS 0.3+
+        self.llm = LangchainLLMWrapper(langchain_llm)
+        self.embeddings = LangchainEmbeddingsWrapper(langchain_embeddings)
 
         # Métriques RAGAS
         self.metrics = [
@@ -94,17 +106,23 @@ class CertificationEvaluator:
         # 5. Evaluate with RAGAS (using Claude)
         logger.info("Running RAGAS evaluation...")
 
-        # Configure metrics to use Claude
-        from ragas.llms import LangchainLLMWrapper
-        critic_llm = LangchainLLMWrapper(self.llm)
+        # RAGAS 0.3+ requires llm AND embeddings parameters
+        scores = evaluate(
+            dataset,
+            metrics=self.metrics,
+            llm=self.llm,
+            embeddings=self.embeddings
+        )
 
-        # Update metrics with Claude LLM
-        for metric in self.metrics:
-            metric.llm = critic_llm
+        # 6. Convert RAGAS EvaluationResult to dict
+        # RAGAS 0.3+ returns EvaluationResult object with to_pandas() method
+        if hasattr(scores, 'to_pandas'):
+            scores_df = scores.to_pandas()
+            scores_dict = scores_df.iloc[0].to_dict()
+        else:
+            scores_dict = dict(scores)
 
-        scores = evaluate(dataset, metrics=self.metrics)
-
-        # 6. Structure results
+        # Structure results
         evaluation_result = {
             "question": question,
             "answer": result["answer"],
@@ -114,17 +132,17 @@ class CertificationEvaluator:
             # Scores détaillés
             "scores": {
                 "retrieval": {
-                    "context_precision": float(scores["context_precision"]),
+                    "context_precision": float(scores_dict["context_precision"]),
                 },
                 "generation": {
-                    "faithfulness": float(scores["faithfulness"]),
-                    "answer_relevancy": float(scores["answer_relevancy"]),
-                    "answer_correctness": float(scores["answer_correctness"]),
+                    "faithfulness": float(scores_dict["faithfulness"]),
+                    "answer_relevancy": float(scores_dict["answer_relevancy"]),
+                    "answer_correctness": float(scores_dict["answer_correctness"]),
                 },
             },
 
             # Score global pondéré
-            "overall_score": self._compute_overall_score(scores),
+            "overall_score": self._compute_overall_score(scores_dict),
 
             # Metadata
             "metadata": {

@@ -112,6 +112,41 @@ async def startup_event():
 
     print("✅ RAG Agent initialized (k=4, improved prompt)")
 
+    # Sync uploaded_documents with ChromaDB (CRITICAL for persistence)
+    global uploaded_documents
+    try:
+        collection = vectorstore._collection
+        results = collection.get()
+
+        # Group by source
+        sources_data = {}
+        for meta in results['metadatas']:
+            source = meta.get('source')
+            if source:
+                if source not in sources_data:
+                    sources_data[source] = {
+                        'file_size': meta.get('file_size', 0),
+                        'upload_date': meta.get('upload_date', ''),
+                        'chunks': 0
+                    }
+                sources_data[source]['chunks'] += 1
+
+        # Populate uploaded_documents
+        uploaded_documents = [
+            {
+                'source': source,
+                'file_size': data['file_size'],
+                'upload_date': data['upload_date'],
+                'chunks': data['chunks']
+            }
+            for source, data in sources_data.items()
+        ]
+
+        print(f"📚 Synced {len(uploaded_documents)} documents from ChromaDB ({collection.count()} chunks)")
+    except Exception as e:
+        print(f"⚠️  Warning: Could not sync uploaded_documents: {e}")
+        uploaded_documents = []
+
 
 # ========================================
 # ENDPOINTS
@@ -230,9 +265,11 @@ async def upload_documents(files: List[UploadFile] = File(...)):
     Handle real document upload and processing
     Supports PDF, TXT, MD, and DOCX files
     """
+    global vectorstore  # CRITICAL: Use the global vectorstore instance
+
     from langchain_community.document_loaders import PyPDFLoader, TextLoader
-    from langchain.text_splitter import RecursiveCharacterTextSplitter
-    from langchain.schema import Document
+    from langchain_text_splitters import RecursiveCharacterTextSplitter
+    from langchain_core.documents import Document
 
     results = []
     total_chunks = 0
@@ -344,6 +381,12 @@ async def upload_documents(files: List[UploadFile] = File(...)):
             except:
                 pass
 
+    # Persist changes to ChromaDB (CRITICAL for disk persistence)
+    if total_chunks > 0:
+        print(f"💾 Persisting {total_chunks} chunks to ChromaDB...")
+        vectorstore.persist()
+        print("✅ ChromaDB persisted to disk")
+
     # Return with explicit headers to prevent buffering
     return JSONResponse(
         content={
@@ -361,26 +404,53 @@ async def upload_documents(files: List[UploadFile] = File(...)):
 @app.delete("/api/documents")
 async def delete_document(source: str):
     """Delete a document by source - removes from both list and vectorstore"""
-    global uploaded_documents
+    global uploaded_documents, vectorstore
 
     # Find and remove the document from list
     original_count = len(uploaded_documents)
     uploaded_documents = [d for d in uploaded_documents if d["source"] != source]
 
     if len(uploaded_documents) < original_count:
-        # Also try to remove from vectorstore
-        # Note: Chroma doesn't have a simple way to delete by metadata
-        # In production, you'd want to track document IDs
+        # Remove from vectorstore using ChromaDB delete with metadata filter
         try:
-            # This is a workaround - recreate the vectorstore without the deleted documents
-            # In production, use a better strategy
-            pass
+            collection = vectorstore._collection
+            collection.delete(where={"source": source})
+            print(f"✅ Deleted {source} from ChromaDB")
         except Exception as e:
-            print(f"Warning: Could not remove from vectorstore: {e}")
+            print(f"⚠️  Warning: Could not remove from vectorstore: {e}")
 
         return {"message": f"Deleted {source}"}
     else:
         raise HTTPException(status_code=404, detail=f"Document {source} not found")
+
+
+@app.delete("/api/documents/all")
+async def clear_all_documents():
+    """Clear all documents from ChromaDB and uploaded_documents list"""
+    global uploaded_documents, vectorstore
+
+    try:
+        # Get count before deletion
+        collection = vectorstore._collection
+        count_before = collection.count()
+
+        # Delete all documents from ChromaDB
+        # Get all IDs and delete them
+        all_ids = collection.get()['ids']
+        if all_ids:
+            collection.delete(ids=all_ids)
+
+        # Clear uploaded_documents list
+        uploaded_documents = []
+
+        print(f"🗑️  Cleared all documents: {count_before} chunks deleted")
+
+        return {
+            "message": "All documents cleared",
+            "chunks_deleted": count_before
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error clearing documents: {str(e)}")
 
 
 # ========================================

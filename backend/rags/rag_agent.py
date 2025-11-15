@@ -12,7 +12,7 @@ load_dotenv()
 
 from langchain.chat_models import init_chat_model
 from langchain_community.vectorstores import Chroma
-from langchain.tools import tool
+from langchain_core.tools import tool
 from langchain_core.messages import SystemMessage, RemoveMessage
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import StateGraph, END, START
