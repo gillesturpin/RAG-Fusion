@@ -33,3 +33,8 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Evaluation artifacts (generated files)
+backend/scripts/evaluation_report_*.json
+!backend/scripts/evaluation_report_FINAL.json
+backend/scripts/evaluation_dataset_q*.json

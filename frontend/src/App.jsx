@@ -7,7 +7,7 @@ import {
 import ReactMarkdown from 'react-markdown'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
-import CertificationDashboard from './CertificationDashboard'
+import EvaluationDashboard from './EvaluationDashboard'
 import './App.css'
 
 // Dynamic API URL
@@ -18,7 +18,7 @@ const API_URL = window.location.hostname === 'localhost'
   : ''  // Production: use relative URLs, nginx handles proxying
 
 function App() {
-  const [activeTab, setActiveTab] = useState('chat') // 'chat' or 'certification'
+  const [activeTab, setActiveTab] = useState('chat') // 'chat' or 'evaluation'
   const [question, setQuestion] = useState('')
   const [messages, setMessages] = useState([])
   const [loading, setLoading] = useState(false)
@@ -48,30 +48,26 @@ function App() {
       const response = await axios.get(`${API_URL}/api/documents`)
       setDocuments(response.data.documents || [])
     } catch (error) {
-      console.error('Error fetching documents:', error)
+      
     }
   }, [])
 
   const handleUpload = useCallback(async (files) => {
     if (!files || files.length === 0) return
     if (uploading) {
-      console.log('⚠️ Upload already in progress, skipping')
+      
       return
     }
 
-    console.log('📤 Starting upload for', files.length, 'files')
     setUploading(true)
     setUploadProgress({ total: files.length, current: 0, status: 'Uploading...' })
 
     const formData = new FormData()
     for (const file of files) {
-      console.log('Adding file to FormData:', file.name)
       formData.append('files', file)
     }
 
     try {
-      console.log('Sending POST request to:', `${API_URL}/api/upload`)
-      console.log('FormData prepared, files count:', formData.getAll('files').length)
 
       // Use fetch instead of axios for better compatibility
       const fetchResponse = await fetch(`${API_URL}/api/upload`, {
@@ -85,7 +81,6 @@ function App() {
       }
 
       const response = { data: await fetchResponse.json() }
-      console.log('✅ Upload response received:', response.data)
 
       const results = response.data.results || []
       const successCount = results.filter(r => r.status === 'success').length
@@ -96,20 +91,19 @@ function App() {
       let isError = false
 
       if (errorCount === 0 && successCount > 0) {
-        status = `✅ ${totalChunks} chunks added from ${successCount} file${successCount > 1 ? 's' : ''}`
+        status = `SUCCESS: ${totalChunks} chunks added from ${successCount} file${successCount > 1 ? 's' : ''}`
       } else if (successCount > 0 && errorCount > 0) {
-        status = `⚠️ ${successCount} succeeded, ${errorCount} failed`
+        status = `WARNING: ${successCount} succeeded, ${errorCount} failed`
         isError = true
       } else if (errorCount > 0) {
         const firstError = results.find(r => r.status === 'error')
-        status = `❌ Upload failed: ${firstError?.message || 'Unknown error'}`
+        status = `ERROR: Upload failed: ${firstError?.message || 'Unknown error'}`
         isError = true
       } else {
-        status = `❌ No documents were added`
+        status = `ERROR: No documents were added`
         isError = true
       }
 
-      console.log('Setting upload progress:', status)
       setUploadProgress({
         total: response.data.total_files,
         current: response.data.total_files,
@@ -119,24 +113,21 @@ function App() {
       })
 
       if (successCount > 0) {
-        console.log('Fetching updated documents list')
         await fetchDocuments()
       }
 
       setTimeout(() => {
-        console.log('Clearing upload progress')
         setUploadProgress(null)
         if (successCount > 0 && errorCount === 0) {
           setShowUpload(false)
         }
       }, 5000)
 
-    } catch (error) {
-      console.error('Upload error:', error)
+      
       setUploadProgress({
         total: files.length,
         current: 0,
-        status: `❌ Network error: ${error.message}`,
+        status: `ERROR: Network error: ${error.message}`,
         error: true
       })
 
@@ -145,7 +136,6 @@ function App() {
         setUploadProgress(null)
       }, 5000)
     } finally {
-      console.log('Upload finished, setting uploading to false')
       setUploading(false)
     }
   }, [fetchDocuments])
@@ -201,15 +191,14 @@ function App() {
 
       const startTime = Date.now()
 
-      // Use fetch for streaming support
+      // Use fetch for streaming support (stateless)
       const response = await fetch(`${API_URL}/api/query/stream`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          question: currentQuestion,
-          session_id: `session-${Date.now()}`
+          question: currentQuestion
         })
       })
 
@@ -286,13 +275,11 @@ function App() {
                 throw new Error(data.error)
               }
             } catch (e) {
-              console.error('Error parsing SSE data:', e)
             }
           }
         }
       }
     } catch (error) {
-      console.error('Error:', error)
       setMessages(prev => {
         const newMessages = [...prev]
         const lastIndex = newMessages.length - 1
@@ -321,18 +308,15 @@ function App() {
       })
       fetchDocuments()
     } catch (error) {
-      console.error('Error deleting document:', error)
       alert('Failed to delete document')
     }
   }
 
   const handleFileSelect = (e) => {
     const files = Array.from(e.target.files)
-    console.log('📁 Files selected:', files.length)
     if (files.length > 0) {
       handleUpload(files)
     } else {
-      console.log('⚠️ No files selected')
     }
     // Reset the input so the same file can be selected again
     e.target.value = ''
@@ -377,8 +361,8 @@ function App() {
           Chat
         </button>
         <button
-          className={`app-nav-tab ${activeTab === 'certification' ? 'active' : ''}`}
-          onClick={() => setActiveTab('certification')}
+          className={`app-nav-tab ${activeTab === 'evaluation' ? 'active' : ''}`}
+          onClick={() => setActiveTab('evaluation')}
           style={{ marginLeft: '0.5rem' }}
         >
           Evaluation
@@ -829,9 +813,9 @@ function App() {
       </>
       )}
 
-      {/* Certification View */}
-      {activeTab === 'certification' && (
-        <CertificationDashboard API_URL={API_URL} />
+      {/* Evaluation View */}
+      {activeTab === 'evaluation' && (
+        <EvaluationDashboard API_URL={API_URL} />
       )}
     </div>
   )

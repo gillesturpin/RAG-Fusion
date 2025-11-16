@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
 """
-RAG Agent with RAG Fusion + Grading/Filtering
+RAG Agent with RAG Fusion
 Based on official LangChain docs: https://python.langchain.com/docs/tutorials/rag_agent/
 
 ENHANCEMENTS:
 - RAG Fusion: Multi-query retrieval + RRF reranking for improved retrieval
-- Grading/Filtering: LLM-based relevance check to filter retrieved documents
 - Stateless mode: No InMemorySaver (each question independent for evaluation)
+- Optimized configuration: k=8 documents, temperature=1.0
 
 Inspired by:
 - learning-langchain-master/ch3/py/d-rag-fusion.py (RAG Fusion)
-- learning-langchain-master/ch10/py/retrieve_and_grade.py (Grading)
 """
 
 import os
@@ -20,15 +19,13 @@ load_dotenv()
 from langchain.chat_models import init_chat_model
 from langchain_community.vectorstores import Chroma
 from langchain_core.tools import tool
-from langchain_core.messages import SystemMessage, RemoveMessage
+from langchain_core.messages import SystemMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
-from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import StateGraph, END, START
 from langgraph.graph.message import MessagesState
 from langgraph.prebuilt import ToolNode
-from typing import Any, Literal, List
-from pydantic import BaseModel, Field
+from typing import Literal, List
 
 
 # Simple function to trim messages for memory management
@@ -72,36 +69,23 @@ def trim_messages(messages):
     return system_msg + kept
 
 
-# Pydantic model for grading retrieved documents
-class GradeDocuments(BaseModel):
-    """Binary score for relevance check on retrieved documents."""
-    binary_score: str = Field(
-        description="Documents are relevant to the question, 'yes' or 'no'"
-    )
-
-
 class RAGAgent:
     """RAG Agent - Pure implementation from official docs"""
 
-    def __init__(self, vectorstore, checkpointer=None, use_rag_fusion=True, use_grading=True, temperature=1.0, k_documents=6):
+    def __init__(self, vectorstore, checkpointer=None, use_rag_fusion=True, temperature=1.0, k_documents=8):
         """Initialize with existing vectorstore and optional checkpointer
 
         Args:
             vectorstore: ChromaDB vectorstore
             checkpointer: Optional checkpointer for state (None = stateless)
             use_rag_fusion: Enable RAG Fusion (multi-query + RRF) [default: True]
-            use_grading: Enable LLM-based relevance grading [default: True]
             temperature: Model temperature for generation [default: 1.0]
-            k_documents: Number of documents to retrieve with RAG Fusion [default: 6]
+            k_documents: Number of documents to retrieve [default: 8]
         """
         self.vectorstore = vectorstore
-
-        # Use provided checkpointer (can be None for stateless mode)
         self.checkpointer = checkpointer
 
-        # Configuration flags
         self.use_rag_fusion = use_rag_fusion
-        self.use_grading = use_grading
         self.temperature = temperature
         self.k_documents = k_documents
 
@@ -112,24 +96,11 @@ class RAGAgent:
             temperature=temperature
         )
 
-        # Create retrieval grader (for filtering irrelevant docs)
-        structured_llm_grader = self.model.with_structured_output(GradeDocuments)
-
-        grade_prompt = ChatPromptTemplate.from_messages([
-            ("system", "You are a grader assessing relevance of a retrieved document to a user question. "
-                      "If the document contains keywords or semantic meaning related to the question, grade it as relevant. "
-                      "Give a binary score 'yes' or 'no' to indicate whether the document is relevant to the question."),
-            ("human", "Retrieved document: \n\n{document}\n\nUser question: {question}")
-        ])
-
-        self.retrieval_grader = grade_prompt | structured_llm_grader
-
-        # Create retrieve tool with conditional RAG Fusion + Grading
+        # Create retrieve tool with RAG Fusion
         @tool
         def retrieve(query: str):
-            """Retrieve information related to a query (configurable: RAG Fusion + Grading)."""
+            """Retrieve information related to a query using RAG Fusion."""
 
-            # STEP 1: Retrieval (with or without RAG Fusion)
             if self.use_rag_fusion:
                 # RAG Fusion: Multi-query + RRF
                 query_variations = self._generate_query_variations(query)
@@ -138,39 +109,15 @@ class RAGAgent:
                     docs = self.vectorstore.similarity_search(variation, k=4)
                     all_results.append(docs)
                 fused_docs = self._reciprocal_rank_fusion(all_results, k=60)
-                top_docs = fused_docs[:self.k_documents]  # Use configurable k_documents
+                retrieved_docs = fused_docs[:self.k_documents]
             else:
                 # Simple retrieval
-                top_docs = self.vectorstore.similarity_search(query, k=4)
+                retrieved_docs = self.vectorstore.similarity_search(query, k=self.k_documents)
 
-            # STEP 2: Filtering (with or without Grading)
-            if self.use_grading:
-                # Grade each document for relevance
-                filtered_docs = []
-                for doc in top_docs:
-                    grade = self.retrieval_grader.invoke({
-                        "question": query,
-                        "document": doc.page_content
-                    })
-
-                    if grade.binary_score == "yes":
-                        filtered_docs.append(doc)
-
-                    # Stop if we have 4 relevant docs
-                    if len(filtered_docs) >= 4:
-                        break
-
-                # Fallback: if too few docs passed, use top docs anyway
-                if len(filtered_docs) < 2:
-                    filtered_docs = top_docs[:4]
-            else:
-                # No grading: use all retrieved docs
-                filtered_docs = top_docs
-
-            # STEP 3: Return documents
+            # Return documents
             serialized = "\n\n".join(
                 f"Source: {doc.metadata}\nContent: {doc.page_content}"
-                for doc in filtered_docs
+                for doc in retrieved_docs
             )
             return serialized
 
@@ -360,33 +307,21 @@ if __name__ == "__main__":
 
     # Test questions
     print("=" * 60)
-    print("RAG Agent with Memory Support (InMemorySaver)")
+    print("RAG Agent - Stateless Mode")
     print("=" * 60)
 
-    # Test WITHOUT memory (different thread_ids)
-    print("\n--- Test WITHOUT memory (different threads) ---")
-    q1 = "My name is Alice. What is Task Decomposition?"
-    r1 = agent.invoke(q1, thread_id="thread-1")
+    print("\n--- Test Question 1 ---")
+    q1 = "What is Task Decomposition?"
+    r1 = agent.invoke(q1)
     print(f"Q: {q1}")
-    print(f"A: {r1['answer'][:100]}...")
+    print(f"A: {r1['answer'][:200]}...")
+    print(f"Used retrieval: {r1['used_retrieval']}")
 
-    q2 = "What is my name?"
-    r2 = agent.invoke(q2, thread_id="thread-2")  # Different thread
-    print(f"\nQ: {q2}")
-    print(f"A: {r2['answer']}")
-    print("(Different thread - no memory of previous conversation)")
-
-    # Test WITH memory (same thread_id)
-    print("\n--- Test WITH memory (same thread) ---")
-    q3 = "My name is Bob. What is Task Decomposition?"
-    r3 = agent.invoke(q3, thread_id="thread-demo")
-    print(f"Q: {q3}")
-    print(f"A: {r3['answer'][:100]}...")
-
-    q4 = "What is my name?"
-    r4 = agent.invoke(q4, thread_id="thread-demo")  # Same thread
-    print(f"\nQ: {q4}")
-    print(f"A: {r4['answer']}")
-    print("(Same thread - remembers the name Bob)")
+    print("\n--- Test Question 2 ---")
+    q2 = "What are the key learning objectives of this course?"
+    r2 = agent.invoke(q2)
+    print(f"Q: {q2}")
+    print(f"A: {r2['answer'][:200]}...")
+    print(f"Used retrieval: {r2['used_retrieval']}")
 
     print("=" * 60)

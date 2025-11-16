@@ -24,7 +24,7 @@ const GRADE_COLORS = {
   'F': '#ef4444'
 }
 
-export default function CertificationDashboard({ API_URL }) {
+export default function EvaluationDashboard({ API_URL }) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -32,14 +32,14 @@ export default function CertificationDashboard({ API_URL }) {
   const [expandedRow, setExpandedRow] = useState(null)
 
   useEffect(() => {
-    fetchCertificationData()
+    fetchEvaluationData()
   }, [])
 
-  const fetchCertificationData = async () => {
+  const fetchEvaluationData = async () => {
     try {
       setLoading(true)
-      const response = await fetch(`${API_URL}/api/certification`)
-      if (!response.ok) throw new Error('Failed to load certification data')
+      const response = await fetch(`${API_URL}/api/evaluation`)
+      if (!response.ok) throw new Error('Failed to load evaluation data')
       const json = await response.json()
       setData(json)
       setError(null)
@@ -52,8 +52,8 @@ export default function CertificationDashboard({ API_URL }) {
 
   if (loading) {
     return (
-      <div className="certification-container">
-        <div className="certification-loading">
+      <div className="evaluation-container">
+        <div className="evaluation-loading">
           <div className="spinner"></div>
           <p>Loading results...</p>
         </div>
@@ -63,12 +63,12 @@ export default function CertificationDashboard({ API_URL }) {
 
   if (error) {
     return (
-      <div className="certification-container">
-        <div className="certification-error">
+      <div className="evaluation-container">
+        <div className="evaluation-error">
           <XCircle size={48} />
           <h3>Error</h3>
           <p>{error}</p>
-          <button onClick={fetchCertificationData} className="btn-retry">
+          <button onClick={fetchEvaluationData} className="btn-retry">
             Retry
           </button>
         </div>
@@ -79,7 +79,7 @@ export default function CertificationDashboard({ API_URL }) {
   if (!data) return null
 
   const { summary, detailed_results } = data
-  const isPassed = data.certification_passed
+  const isPassed = data.evaluation_passed
 
   // Filter questions by category
   const filteredQuestions = selectedCategory === 'all'
@@ -118,13 +118,13 @@ export default function CertificationDashboard({ API_URL }) {
   ]
 
   return (
-    <div className="certification-container">
+    <div className="evaluation-container">
       {/* Header */}
-      <div className="cert-header">
-        <div className="cert-title-section">
+      <div className="eval-header">
+        <div className="eval-title-section">
           <div>
             <h1>Evaluation Results</h1>
-            <p className="cert-subtitle">
+            <p className="eval-subtitle">
               RAG Evaluation - {new Date(data.timestamp).toLocaleDateString('en-US')}
             </p>
           </div>
@@ -132,45 +132,45 @@ export default function CertificationDashboard({ API_URL }) {
       </div>
 
       {/* Summary Cards */}
-      <div className="cert-summary-grid">
-        <div className="cert-card">
-          <div className="cert-card-header">
+      <div className="eval-summary-grid">
+        <div className="eval-card">
+          <div className="eval-card-header">
             <Target size={20} />
             <span>Overall Score</span>
           </div>
-          <div className="cert-card-value" style={{ color: isPassed ? COLORS.pass : COLORS.fail }}>
+          <div className="eval-card-value" style={{ color: isPassed ? COLORS.pass : COLORS.fail }}>
             {(summary.overall_score * 100).toFixed(1)}%
           </div>
         </div>
 
-        <div className="cert-card">
-          <div className="cert-card-header">
+        <div className="eval-card">
+          <div className="eval-card-header">
             <BarChart3 size={20} />
             <span>Success Rate</span>
           </div>
-          <div className="cert-card-value">
+          <div className="eval-card-value">
             {summary.passed}/{summary.total_questions}
           </div>
         </div>
 
-        <div className="cert-card">
-          <div className="cert-card-header">
+        <div className="eval-card">
+          <div className="eval-card-header">
             <TrendingUp size={20} />
             <span>Context Precision</span>
           </div>
-          <div className="cert-card-value" style={{
+          <div className="eval-card-value" style={{
             color: summary.average_scores.context_precision >= 0.7 ? COLORS.pass : COLORS.fail
           }}>
             {(summary.average_scores.context_precision * 100).toFixed(1)}%
           </div>
         </div>
 
-        <div className="cert-card">
-          <div className="cert-card-header">
+        <div className="eval-card">
+          <div className="eval-card-header">
             <FileText size={20} />
             <span>Answer Similarity</span>
           </div>
-          <div className="cert-card-value" style={{
+          <div className="eval-card-value" style={{
             color: summary.average_scores.answer_similarity >= 0.75 ? COLORS.pass : COLORS.fail
           }}>
             {(summary.average_scores.answer_similarity * 100).toFixed(1)}%
@@ -179,13 +179,13 @@ export default function CertificationDashboard({ API_URL }) {
       </div>
 
       {/* Questions Table */}
-      <div className="cert-questions-section">
-        <div className="cert-questions-header">
+      <div className="eval-questions-section">
+        <div className="eval-questions-header">
           <h3>Detailed Questions</h3>
         </div>
 
-        <div className="cert-table-container">
-          <table className="cert-table">
+        <div className="eval-table-container">
+          <table className="eval-table">
             <thead>
               <tr>
                 <th style={{ width: '40px' }}></th>

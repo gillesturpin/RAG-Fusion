@@ -1,4 +1,4 @@
-# 🔧 Documentation Technique - Agentic RAG
+# Documentation Technique - Agentic RAG
 
 **Version** : 2.0.0
 **Date** : Novembre 2025
@@ -17,7 +17,7 @@
 
 ---
 
-## 🛠️ Stack Technique
+## Stack Technique
 
 ### Backend
 - **Python** 3.12+
@@ -27,7 +27,7 @@
 - **Anthropic** Claude Sonnet 4.5 (`claude-sonnet-4-5-20250929`)
 - **ChromaDB** - Vector store (local persistence)
 - **HuggingFace** - Embeddings (`sentence-transformers/all-MiniLM-L6-v2`)
-- **InMemorySaver** - Conversation memory (LangGraph checkpointer)
+- **Stateless mode** - Conversation memory (LangGraph checkpointer)
 
 ### Frontend
 - **React** 19
@@ -44,7 +44,7 @@
 
 ---
 
-## 📁 Structure du Projet
+## Structure du Projet
 
 ```
 agentic-rag/
@@ -80,7 +80,7 @@ agentic-rag/
 
 ---
 
-## 💻 Implémentation RAG Agent
+## Implémentation RAG Agent
 
 ### Fichier : `backend/rags/rag_agent.py`
 
@@ -94,12 +94,12 @@ class RAGAgent:
         """
         Args:
             vectorstore: ChromaDB vectorstore existant
-            checkpointer: InMemorySaver pour la mémoire (optionnel)
+            checkpointer: Stateless mode pour la mémoire (optionnel)
         """
         self.vectorstore = vectorstore
 
         # Mémoire conversationnelle
-        self.checkpointer = checkpointer or InMemorySaver()
+        self.checkpointer = checkpointer or Stateless mode()
 
         # LLM
         self.model = init_chat_model(
@@ -111,7 +111,7 @@ class RAGAgent:
         @tool
         def retrieve(query: str):
             """Retrieve information related to a query."""
-            retrieved_docs = self.vectorstore.similarity_search(query, k=4)
+            retrieved_docs = self.vectorstore.similarity_search(query, k=8)
             serialized = "\n\n".join(
                 f"Source: {doc.metadata}\nContent: {doc.page_content}"
                 for doc in retrieved_docs
@@ -129,9 +129,9 @@ class RAGAgent:
 
 **Points clés** :
 - **Vectorstore** : Passé en paramètre (créé au startup de l'API)
-- **Checkpointer** : `InMemorySaver` pour persister les conversations
+- **Checkpointer** : `Stateless mode` pour persister les conversations
 - **Tool** : Fonction `retrieve` wrappée avec `@tool`
-- **k=4** : Récupère 4 documents max
+- **k=8** : Récupère 4 documents max
 - **Graph** : Compilé avec le checkpointer
 
 ### 2. Build du Graph LangGraph
@@ -258,7 +258,7 @@ def invoke(self, question: str, thread_id: str = None) -> dict:
 
 ---
 
-## 🌐 API REST
+## API REST
 
 ### Fichier : `backend/api/main.py`
 
@@ -283,12 +283,12 @@ async def startup_event():
     )
 
     # Create checkpointer
-    checkpointer = InMemorySaver()
+    checkpointer = Stateless mode()
 
     # Initialize RAG agent
     rag_agent = RAGAgent(vectorstore, checkpointer=checkpointer)
 
-    print("✅ RAG Agent initialized with memory support")
+    print(" RAG Agent initialized with memory support")
 ```
 
 ### Endpoints Principaux
@@ -369,7 +369,7 @@ async def query_adapter(request: dict):
     }
 ```
 
-**⚠️ Note** : `confidence` et `faithfulness` sont **hardcodés** ici.
+** Note** : `confidence` et `faithfulness` sont **hardcodés** ici.
 
 #### 3. `POST /api/upload`
 
@@ -420,9 +420,9 @@ async def upload_documents(files: List[UploadFile] = File(...)):
 
 ---
 
-## 🧠 Mémoire Conversationnelle
+## Mémoire Conversationnelle
 
-### InMemorySaver
+### Stateless mode
 
 LangGraph utilise un **checkpointer** pour persister l'état du graph entre les appels.
 
@@ -437,11 +437,11 @@ LangGraph utilise un **checkpointer** pour persister l'état du graph entre les 
 # Conversation 1 (thread-1)
 agent.invoke("My name is Alice", thread_id="thread-1")
 agent.invoke("What is my name?", thread_id="thread-1")
-# → "Your name is Alice" ✅
+# → "Your name is Alice" 
 
 # Conversation 2 (thread-2)
 agent.invoke("What is my name?", thread_id="thread-2")
-# → "I don't know your name" ✅
+# → "I don't know your name" 
 ```
 
 ### Gestion des Sessions (API)
@@ -461,7 +461,7 @@ thread_id = session_threads[session_id]
 
 ---
 
-## 🚀 Streaming
+## Streaming
 
 ### Server-Sent Events (SSE)
 
@@ -518,7 +518,7 @@ async def generate_sse_stream(question: str, thread_id: str):
 
 ---
 
-## 📤 Upload de Documents
+## Upload de Documents
 
 ### Formats Supportés
 
@@ -548,7 +548,7 @@ vectorstore.add_documents(chunks)
 
 ---
 
-## 🧪 Tests
+## Tests
 
 ### Test Mémoire
 
@@ -559,9 +559,9 @@ python test_memory.py
 ```
 
 **Tests** :
-- ✅ Thread différent → pas de mémoire
-- ✅ Même thread → mémoire OK
-- ✅ Trimming → garde 10 messages max
+-  Thread différent → pas de mémoire
+-  Même thread → mémoire OK
+-  Trimming → garde 10 messages max
 
 ### Test API Manuel
 
@@ -587,7 +587,7 @@ curl -X POST http://localhost:8000/api/rag_agent \
 
 ---
 
-## 🐳 Déploiement
+## Déploiement
 
 ### Variables d'Environnement
 
@@ -633,7 +633,7 @@ docker-compose up --build
 
 ---
 
-## 📊 Métriques
+## Métriques
 
 ### Actuelles (Hardcodées)
 
@@ -654,7 +654,7 @@ Voir plan d'évaluation séparé.
 
 ---
 
-## 🔐 Sécurité
+## Sécurité
 
 ### API Key
 
@@ -693,7 +693,7 @@ app.add_middleware(
 
 ---
 
-## 📚 Ressources
+## Ressources
 
 - [LangChain RAG Agent Tutorial](https://python.langchain.com/docs/tutorials/rag_agent/)
 - [LangGraph Docs](https://langchain-ai.github.io/langgraph/)
@@ -702,19 +702,20 @@ app.add_middleware(
 
 ---
 
-## 🚀 Roadmap
+## Roadmap
 
-### ✅ Implémenté
+### Implémenté
 - RAG Agent avec tool calling
-- Mémoire conversationnelle (InMemorySaver)
+- RAG Fusion (multi-query + RRF reranking)
+- Mode stateless (optimisé pour évaluation)
 - Streaming SSE
-- Upload documents multi-formats
+- Upload documents multi-formats (PDF/TXT/MD/DOCX/IPYNB)
 - Message trimming
 - API REST complète
+- Évaluation RAGAS (Score 87.4% - Grade A)
 
-### ⏳ À Venir
-- **Évaluation RAGAS** (faithfulness, relevance, precision)
-- Agentic RAG avec grading/rewriting
+### À Venir
+- Mode conversationnel avec mémoire (checkpointer)
 - PostgreSQL checkpointer (persistance DB)
 - Hybrid search (dense + sparse)
 - Citation tracking

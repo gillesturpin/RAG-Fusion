@@ -1,6 +1,6 @@
 """
-Évaluateur RAGAS pour Agentic RAG
-Évalue le système avec 2 métriques essentielles :
+RAGAS Evaluator for Agentic RAG
+Evaluates the system with 2 essential metrics:
 - context_precision (retrieval quality)
 - answer_similarity (generation semantic similarity - more tolerant)
 """
@@ -8,8 +8,8 @@
 from typing import Dict, Optional
 from ragas import evaluate
 from ragas.metrics import (
-    context_precision,      # Retrieval - Quality of retrieved docs
-    answer_similarity       # Generation - Semantic similarity (more tolerant than answer_correctness)
+    context_precision,
+    answer_similarity
 )
 from ragas.llms import LangchainLLMWrapper
 from ragas.embeddings import LangchainEmbeddingsWrapper
@@ -21,46 +21,42 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class CertificationEvaluator:
+class EvaluationEvaluator:
     """
-    Évaluateur pour certification avec 2 métriques RAGAS essentielles
+    Evaluation evaluator with 2 essential RAGAS metrics
 
-    Métriques:
-        - context_precision: Qualité du retrieval (docs pertinents récupérés)
-        - answer_similarity: Similarité sémantique de la réponse (vs ground truth)
-                            Plus tolérant qu'answer_correctness (embeddings-based)
+    Metrics:
+        - context_precision: Retrieval quality (relevant docs retrieved)
+        - answer_similarity: Semantic similarity of answer (vs ground truth)
+                            More tolerant than answer_correctness (embeddings-based)
 
-    Pondération overall_score:
+    Overall score weighting:
         - 30% context_precision (retrieval)
-        - 70% answer_similarity (generation - plus important car résultat final)
+        - 70% answer_similarity (generation - more important as final result)
     """
 
     def __init__(self, rag_agent):
         """
         Args:
-            rag_agent: Instance du RAG Agent à évaluer
+            rag_agent: RAG Agent instance to evaluate
         """
         self.rag_agent = rag_agent
 
-        # LLM pour RAGAS (utilise Claude au lieu d'OpenAI)
         langchain_llm = ChatAnthropic(
-            model="claude-3-5-haiku-20241022",  # Haiku pour économie
+            model="claude-3-5-haiku-20241022",
             temperature=0
         )
 
-        # Embeddings pour RAGAS (mêmes que le RAG)
         langchain_embeddings = HuggingFaceEmbeddings(
             model_name="sentence-transformers/all-MiniLM-L6-v2"
         )
 
-        # Wrap pour RAGAS 0.3+
         self.llm = LangchainLLMWrapper(langchain_llm)
         self.embeddings = LangchainEmbeddingsWrapper(langchain_embeddings)
 
-        # Métriques RAGAS (2 métriques essentielles)
         self.metrics = [
-            context_precision,     # Retrieval quality
-            answer_similarity      # Generation semantic similarity (requires ground_truth)
+            context_precision,
+            answer_similarity
         ]
 
     def evaluate_single(
@@ -70,30 +66,26 @@ class CertificationEvaluator:
         thread_id: Optional[str] = None
     ) -> Dict:
         """
-        Évalue une seule question avec toutes les métriques
+        Evaluate a single question with all metrics
 
         Args:
-            question: La question à évaluer
-            ground_truth: La réponse attendue (requis pour answer_correctness)
-            thread_id: ID du thread pour mémoire conversationnelle
+            question: Question to evaluate
+            ground_truth: Expected answer (required for answer_correctness)
+            thread_id: Thread ID for conversational memory
 
         Returns:
-            Dict avec scores détaillés
+            Dict with detailed scores
         """
 
         logger.info(f"Evaluating question: {question[:60]}...")
 
-        # 1. Invoke RAG Agent
         result = self.rag_agent.invoke(question, thread_id=thread_id)
-
-        # 2. Extract contexts from messages
         contexts = self._extract_contexts(result["messages"])
 
         if not contexts or contexts == [""]:
             logger.warning("No contexts retrieved!")
             contexts = ["No context retrieved"]
 
-        # 3. Prepare data for RAGAS
         data = {
             "question": [question],
             "answer": [result["answer"]],
@@ -101,13 +93,10 @@ class CertificationEvaluator:
             "ground_truth": [ground_truth]
         }
 
-        # 4. Create Dataset
         dataset = Dataset.from_dict(data)
 
-        # 5. Evaluate with RAGAS (using Claude)
         logger.info("Running RAGAS evaluation...")
 
-        # RAGAS 0.3+ requires llm AND embeddings parameters
         scores = evaluate(
             dataset,
             metrics=self.metrics,
@@ -115,31 +104,25 @@ class CertificationEvaluator:
             embeddings=self.embeddings
         )
 
-        # 6. Convert RAGAS EvaluationResult to dict
-        # RAGAS 0.3+ returns EvaluationResult object with to_pandas() method
         if hasattr(scores, 'to_pandas'):
             scores_df = scores.to_pandas()
             scores_dict = scores_df.iloc[0].to_dict()
         else:
             scores_dict = dict(scores)
 
-        # Structure results (2 metrics only)
         evaluation_result = {
             "question": question,
             "answer": result["answer"],
             "ground_truth": ground_truth,
             "contexts": contexts,
 
-            # Scores (simplified to 2 metrics)
             "scores": {
                 "context_precision": float(scores_dict.get("context_precision", 0.0)),
                 "answer_similarity": float(scores_dict.get("answer_similarity", 0.0)),
             },
 
-            # Score global pondéré (30% retrieval, 70% generation)
             "overall_score": self._compute_overall_score(scores_dict),
 
-            # Metadata
             "metadata": {
                 "used_retrieval": result.get("used_retrieval", True),
                 "num_contexts": len(contexts),
@@ -153,18 +136,17 @@ class CertificationEvaluator:
 
     def _extract_contexts(self, messages):
         """
-        Extrait les contextes des tool messages
+        Extract contexts from tool messages
 
         Args:
-            messages: Liste des messages du graph
+            messages: List of messages from the graph
 
         Returns:
-            Liste des contextes (strings)
+            List of contexts (strings)
         """
         contexts = []
 
         for msg in messages:
-            # Tool messages contiennent les documents récupérés
             if hasattr(msg, 'type') and msg.type == "tool":
                 if hasattr(msg, 'content') and msg.content:
                     contexts.append(msg.content)
@@ -173,37 +155,37 @@ class CertificationEvaluator:
 
     def _compute_overall_score(self, scores: dict) -> float:
         """
-        Calcule le score global pondéré (2 métriques)
+        Compute weighted overall score (2 metrics)
 
-        Pondération:
+        Weighting:
             - context_precision: 30%  (retrieval quality)
-            - answer_similarity: 70% (generation semantic similarity - plus critique)
+            - answer_similarity: 70% (generation semantic similarity - more critical)
 
         Args:
-            scores: Dict des scores RAGAS
+            scores: Dict of RAGAS scores
 
         Returns:
-            Score global entre 0 et 1
+            Overall score between 0 and 1
         """
         return (
             0.3 * scores.get("context_precision", 0.0) +
             0.7 * scores.get("answer_similarity", 0.0)
         )
 
-    def get_certification_verdict(self, overall_score: float, scores: dict) -> Dict:
+    def get_evaluation_verdict(self, overall_score: float, scores: dict) -> Dict:
         """
-        Détermine si le système passe la certification (2 métriques)
+        Determine if the system passes evaluation (2 metrics)
 
-        Seuils de certification:
+        Evaluation thresholds:
             - context_precision >= 0.70 (retrieval quality)
             - answer_similarity >= 0.75 (generation semantic similarity)
 
         Args:
-            overall_score: Score global pondéré
-            scores: Scores individuels
+            overall_score: Weighted overall score
+            scores: Individual scores
 
         Returns:
-            Dict avec verdict de certification
+            Dict with evaluation verdict
         """
 
         thresholds = {
@@ -211,13 +193,11 @@ class CertificationEvaluator:
             "answer_similarity": 0.75
         }
 
-        # Vérifier chaque seuil
         passed = all(
             scores.get(metric, 0) >= threshold
             for metric, threshold in thresholds.items()
         )
 
-        # Grade
         if overall_score >= 0.9:
             grade = "A+ (Excellent)"
         elif overall_score >= 0.8:

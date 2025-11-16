@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Script d'évaluation de certification - Agentic RAG
-Évalue le système RAG avec RAGAS sur le dataset de certification
+Script d'évaluation - Agentic RAG
+Évalue le système RAG avec RAGAS sur le dataset d'évaluation
 """
 
 import json
@@ -14,7 +14,7 @@ import logging
 sys.path.append(str(Path(__file__).parent.parent))
 
 from rags.rag_agent import RAGAgent
-from rags.evaluator import CertificationEvaluator
+from rags.evaluator import EvaluationEvaluator
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Chroma
 from dotenv import load_dotenv
@@ -29,30 +29,28 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 
-def run_certification(
-    dataset_file="certification_dataset.json",
+def run_evaluation(
+    dataset_file="evaluation_dataset.json",
     output_file=None,
     limit=None,
     use_rag_fusion=True,
-    use_grading=True,
-    temperature=1.0,  # Back to 1.0 (0.0 was worse)
-    k_documents=6
+    temperature=1.0,
+    k_documents=8
 ):
     """
-    Lance l'évaluation de certification complète
+    Run complete evaluation
 
     Args:
-        dataset_file: Fichier JSON du dataset
-        output_file: Fichier de sortie (auto-généré si None)
-        limit: Limiter à N questions (pour tests rapides)
+        dataset_file: JSON dataset file
+        output_file: Output file (auto-generated if None)
+        limit: Limit to N questions (for quick tests)
         use_rag_fusion: Enable RAG Fusion (multi-query + RRF) [default: True]
-        use_grading: Enable LLM-based relevance grading [default: True]
         temperature: Model temperature for generation [default: 1.0]
-        k_documents: Number of documents to retrieve with RAG Fusion [default: 6]
+        k_documents: Number of documents to retrieve with RAG Fusion [default: 8]
     """
 
     print("=" * 80)
-    print("🎓 CERTIFICATION EVALUATION - Agentic RAG")
+    print("EVALUATION - Agentic RAG")
     print("=" * 80)
     print()
 
@@ -60,8 +58,8 @@ def run_certification(
     dataset_path = Path(__file__).parent / dataset_file
 
     if not dataset_path.exists():
-        print(f"❌ Dataset not found: {dataset_path}")
-        print(f"   Run: python generate_certification_dataset.py first")
+        print(f"Dataset not found: {dataset_path}")
+        print(f"   Run: python generate_evaluation_dataset.py first")
         sys.exit(1)
 
     with open(dataset_path) as f:
@@ -72,15 +70,15 @@ def run_certification(
 
     if limit:
         questions = questions[:limit]
-        print(f"⚠️  Limiting to {limit} questions for testing")
+        print(f"Limiting to {limit} questions for testing")
 
-    print(f"📊 Loaded {len(questions)} certification questions")
-    print(f"📚 From {metadata.get('num_documents', '?')} documents")
-    print(f"📦 Using {metadata.get('total_chunks', '?')} chunks")
+    print(f"Loaded {len(questions)} evaluation questions")
+    print(f"From {metadata.get('num_documents', '?')} documents")
+    print(f"Using {metadata.get('total_chunks', '?')} chunks")
     print()
 
     # 2. Initialize RAG Agent
-    print("🚀 Initializing RAG Agent...")
+    print("Initializing RAG Agent...")
     embeddings = HuggingFaceEmbeddings(
         model_name="sentence-transformers/all-MiniLM-L6-v2"
     )
@@ -96,7 +94,6 @@ def run_certification(
         vectorstore,
         checkpointer=None,
         use_rag_fusion=use_rag_fusion,
-        use_grading=use_grading,
         temperature=temperature,
         k_documents=k_documents
     )
@@ -105,28 +102,24 @@ def run_certification(
     config_info = []
     if use_rag_fusion:
         config_info.append("RAG Fusion")
-    if use_grading:
-        config_info.append("Grading")
-    # Always show temperature for transparency
     config_info.append(f"T={temperature}")
-    if k_documents != 6:
-        config_info.append(f"k={k_documents}")
-    config_str = " + ".join(config_info) if config_info else "Baseline (no optimizations)"
+    config_info.append(f"k={k_documents}")
+    config_str = " + ".join(config_info)
 
-    print(f"✅ RAG Agent initialized ({config_str})")
+    print(f"RAG Agent initialized ({config_str})")
     print()
 
     # 3. Initialize Evaluator
-    print("🎯 Initializing RAGAS Evaluator...")
-    evaluator = CertificationEvaluator(agent)
-    print("✅ Evaluator ready with 2 essential metrics:")
+    print("Initializing RAGAS Evaluator...")
+    evaluator = EvaluationEvaluator(agent)
+    print("Evaluator ready with 2 essential metrics:")
     print("   - context_precision (retrieval quality) - 30% weight")
     print("   - answer_similarity (semantic similarity - more tolerant) - 70% weight")
     print()
 
     # 4. Run evaluation
     print("=" * 80)
-    print("🧪 RUNNING EVALUATION")
+    print("RUNNING EVALUATION")
     print("=" * 80)
     print()
 
@@ -147,7 +140,7 @@ def run_certification(
             )
 
             # Get verdict (2 metrics)
-            verdict = evaluator.get_certification_verdict(
+            verdict = evaluator.get_evaluation_verdict(
                 result["overall_score"],
                 {
                     "context_precision": result["scores"]["context_precision"],
@@ -167,7 +160,7 @@ def run_certification(
             results.append(result)
 
             # Show quick summary
-            status = "✅ PASS" if verdict["passed"] else "❌ FAIL"
+            status = "PASS" if verdict["passed"] else "FAIL"
             print(f"   {status} - Overall: {verdict['overall_score']:.3f} ({verdict['grade']})")
             print(f"   Scores: Context Precision={result['scores']['context_precision']:.2f} | "
                   f"Answer Similarity={result['scores']['answer_similarity']:.2f}")
@@ -177,18 +170,18 @@ def run_certification(
 
         except Exception as e:
             logger.error(f"Error evaluating question {i}: {e}")
-            print(f"   ❌ ERROR: {e}")
+            print(f"   ERROR: {e}")
             continue
 
     # 5. Compute aggregate statistics
     print()
     print("=" * 80)
-    print("📈 CERTIFICATION RESULTS")
+    print("EVALUATION RESULTS")
     print("=" * 80)
     print()
 
     if not results:
-        print("❌ No results to report")
+        print("No results to report")
         sys.exit(1)
 
     # Average scores (2 metrics)
@@ -199,17 +192,17 @@ def run_certification(
 
     overall_avg = sum(r["overall_score"] for r in results) / len(results)
 
-    print(f"📊 Average Scores (n={len(results)}):")
+    print(f"Average Scores (n={len(results)}):")
     print(f"   Context Precision (30%):  {avg_scores['context_precision']:.3f}")
     print(f"   Answer Similarity (70%):  {avg_scores['answer_similarity']:.3f} ⭐")
     print()
     print(f"   Overall Score (weighted): {overall_avg:.3f}")
     print()
-    print(f"🎯 Pass Rate: {passed_count}/{len(results)} ({100*passed_count/len(results):.1f}%)")
+    print(f"Pass Rate: {passed_count}/{len(results)} ({100*passed_count/len(results):.1f}%)")
     print()
 
-    # 6. Determine final certification
-    certification_passed = passed_count >= len(results) * 0.8  # 80% pass rate
+    # 6. Determine final evaluation result
+    evaluation_passed = passed_count >= len(results) * 0.8  # 80% pass rate
 
     # Grade
     if overall_avg >= 0.9:
@@ -224,12 +217,12 @@ def run_certification(
         final_grade = "F (Failed)"
 
     print("=" * 80)
-    if certification_passed:
-        print("✅ CERTIFICATION: PASSED")
+    if evaluation_passed:
+        print("EVALUATION: PASSED")
         print(f"   Grade: {final_grade}")
         print(f"   Overall Score: {overall_avg:.3f}")
     else:
-        print("❌ CERTIFICATION: FAILED")
+        print("EVALUATION: FAILED")
         print(f"   Pass rate too low: {100*passed_count/len(results):.1f}% < 80%")
         print(f"   Grade: {final_grade}")
     print("=" * 80)
@@ -238,13 +231,13 @@ def run_certification(
     # 7. Save detailed report
     if output_file is None:
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        output_file = f"certification_report_{timestamp}.json"
+        output_file = f"evaluation_report_{timestamp}.json"
 
     output_path = Path(__file__).parent / output_file
 
     report = {
         "timestamp": datetime.now().isoformat(),
-        "certification_passed": certification_passed,
+        "evaluation_passed": evaluation_passed,
         "summary": {
             "total_questions": len(results),
             "passed": passed_count,
@@ -276,7 +269,7 @@ def run_certification(
 
         print()
         print("=" * 80)
-        print("⚠️  BOTTOM 3 QUESTIONS (Needs Improvement)")
+        print("BOTTOM 3 QUESTIONS (Needs Improvement)")
         print("=" * 80)
         for i, r in enumerate(sorted_results[-3:], 1):
             print(f"\n{i}. Score: {r['overall_score']:.3f} - {r['metadata'].get('category', 'N/A')}")
@@ -288,23 +281,23 @@ def run_certification(
 
     print()
     print("=" * 80)
-    print("✅ EVALUATION COMPLETE")
+    print("EVALUATION COMPLETE")
     print("=" * 80)
     print()
 
     # Return exit code for CI/CD
-    return 0 if certification_passed else 1
+    return 0 if evaluation_passed else 1
 
 
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description="Run certification evaluation")
+    parser = argparse.ArgumentParser(description="Run evaluation")
     parser.add_argument(
         "--dataset",
         type=str,
-        default="certification_dataset.json",
-        help="Dataset file (default: certification_dataset.json)"
+        default="evaluation_dataset.json",
+        help="Dataset file (default: evaluation_dataset.json)"
     )
     parser.add_argument(
         "--output",
@@ -324,11 +317,6 @@ if __name__ == "__main__":
         help="Disable RAG Fusion (multi-query + RRF)"
     )
     parser.add_argument(
-        "--no-grading",
-        action="store_true",
-        help="Disable LLM-based relevance grading"
-    )
-    parser.add_argument(
         "--temperature",
         type=float,
         default=1.0,
@@ -337,26 +325,25 @@ if __name__ == "__main__":
     parser.add_argument(
         "--k-documents",
         type=int,
-        default=6,
-        help="Number of documents to retrieve with RAG Fusion (default: 6)"
+        default=8,
+        help="Number of documents to retrieve with RAG Fusion (default: 8)"
     )
 
     args = parser.parse_args()
 
     try:
-        exit_code = run_certification(
+        exit_code = run_evaluation(
             dataset_file=args.dataset,
             output_file=args.output,
             limit=args.limit,
             use_rag_fusion=not args.no_rag_fusion,
-            use_grading=not args.no_grading,
             temperature=args.temperature,
             k_documents=args.k_documents
         )
         sys.exit(exit_code)
 
     except KeyboardInterrupt:
-        print("\n\n⚠️  Evaluation interrupted by user")
+        print("\n\nEvaluation interrupted by user")
         sys.exit(1)
 
     except Exception as e:

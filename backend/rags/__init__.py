@@ -6,7 +6,7 @@ Single agent implementation based on official LangChain tutorials:
 """
 
 from .rag_agent import RAGAgent
-from .evaluator import CertificationEvaluator
+from .evaluator import EvaluationEvaluator
 
-__all__ = ["RAGAgent", "CertificationEvaluator"]
+__all__ = ["RAGAgent", "EvaluationEvaluator"]
 __version__ = "2.0.0"

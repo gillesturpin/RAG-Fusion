@@ -644,7 +644,7 @@ body {
 }
 
 /* ========================================
-   CERTIFICATION DASHBOARD STYLES
+   EVALUATION DASHBOARD STYLES
    ======================================== */
 
 /* Navigation Tabs */
@@ -700,9 +700,10 @@ body {
   color: white;
 }
 
-/* Certification Container */
-.certification-container {
+/* Evaluation Container */
+.evaluation-container {
   padding: 2rem;
+  padding-top: 5rem;
   max-width: 1400px;
   margin: 0 auto;
   color: white;
@@ -711,27 +712,27 @@ body {
   overflow-x: hidden;
 }
 
-/* Custom scrollbar for certification container */
-.certification-container::-webkit-scrollbar {
+/* Custom scrollbar for evaluation container */
+.evaluation-container::-webkit-scrollbar {
   width: 8px;
 }
 
-.certification-container::-webkit-scrollbar-track {
+.evaluation-container::-webkit-scrollbar-track {
   background: rgba(255, 255, 255, 0.05);
   border-radius: 4px;
 }
 
-.certification-container::-webkit-scrollbar-thumb {
+.evaluation-container::-webkit-scrollbar-thumb {
   background: rgba(102, 126, 234, 0.5);
   border-radius: 4px;
 }
 
-.certification-container::-webkit-scrollbar-thumb:hover {
+.evaluation-container::-webkit-scrollbar-thumb:hover {
   background: rgba(102, 126, 234, 0.7);
 }
 
 /* Header */
-.cert-header {
+.eval-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -742,13 +743,13 @@ body {
   border: none;
 }
 
-.cert-title-section {
+.eval-title-section {
   display: flex;
   align-items: center;
   gap: 1.5rem;
 }
 
-.cert-title-section h1 {
+.eval-title-section h1 {
   font-size: 2rem;
   margin: 0;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -756,12 +757,12 @@ body {
   -webkit-text-fill-color: transparent;
 }
 
-.cert-subtitle {
+.eval-subtitle {
   color: rgba(255, 255, 255, 0.6);
   margin: 0.5rem 0 0 0;
 }
 
-.cert-badge {
+.eval-badge {
   display: flex;
   align-items: center;
   gap: 0.75rem;
@@ -771,27 +772,27 @@ body {
   font-size: 1.1rem;
 }
 
-.cert-badge.passed {
+.eval-badge.passed {
   background: rgba(16, 185, 129, 0.2);
   color: #10b981;
   border: 2px solid #10b981;
 }
 
-.cert-badge.failed {
+.eval-badge.failed {
   background: rgba(239, 68, 68, 0.2);
   color: #ef4444;
   border: 2px solid #ef4444;
 }
 
 /* Summary Cards Grid */
-.cert-summary-grid {
+.eval-summary-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   gap: 1.5rem;
   margin-bottom: 2rem;
 }
 
-.cert-card {
+.eval-card {
   background: rgba(255, 255, 255, 0.05);
   border: none;
   border-radius: 16px;
@@ -799,12 +800,12 @@ body {
   transition: transform 0.2s, box-shadow 0.2s;
 }
 
-.cert-card:hover {
+.eval-card:hover {
   transform: translateY(-4px);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
 }
 
-.cert-card-header {
+.eval-card-header {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -813,58 +814,58 @@ body {
   margin-bottom: 1rem;
 }
 
-.cert-card-value {
+.eval-card-value {
   font-size: 2.5rem;
   font-weight: 700;
   margin-bottom: 0.5rem;
 }
 
-.cert-card-footer {
+.eval-card-footer {
   color: rgba(255, 255, 255, 0.6);
   font-size: 0.85rem;
 }
 
 /* Charts Row */
-.cert-charts-row {
+.eval-charts-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
   gap: 1.5rem;
   margin-bottom: 2rem;
 }
 
-.cert-chart-card {
+.eval-chart-card {
   background: rgba(255, 255, 255, 0.05);
   border: none;
   border-radius: 16px;
   padding: 1.5rem;
 }
 
-.cert-chart-card h3 {
+.eval-chart-card h3 {
   margin-top: 0;
   margin-bottom: 1.5rem;
   color: rgba(255, 255, 255, 0.9);
 }
 
 /* Questions Section */
-.cert-questions-section {
+.eval-questions-section {
   background: rgba(255, 255, 255, 0.05);
   border: none;
   border-radius: 16px;
   padding: 1.5rem;
 }
 
-.cert-questions-header {
+.eval-questions-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 1.5rem;
 }
 
-.cert-questions-header h3 {
+.eval-questions-header h3 {
   margin: 0;
 }
 
-.cert-category-filter {
+.eval-category-filter {
   display: flex;
   gap: 0.5rem;
   flex-wrap: wrap;
@@ -891,16 +892,16 @@ body {
 }
 
 /* Table */
-.cert-table-container {
+.eval-table-container {
   overflow-x: auto;
 }
 
-.cert-table {
+.eval-table {
   width: 100%;
   border-collapse: collapse;
 }
 
-.cert-table th {
+.eval-table th {
   text-align: left;
   padding: 1rem;
   background: rgba(255, 255, 255, 0.1);
@@ -909,12 +910,12 @@ body {
   color: rgba(255, 255, 255, 0.9);
 }
 
-.cert-table td {
+.eval-table td {
   padding: 1rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.cert-table tbody tr:hover {
+.eval-table tbody tr:hover {
   background: rgba(255, 255, 255, 0.05);
 }
 
@@ -972,8 +973,8 @@ body {
 }
 
 /* Loading & Error States */
-.certification-loading,
-.certification-error {
+.evaluation-loading,
+.evaluation-error {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -982,7 +983,7 @@ body {
   gap: 1rem;
 }
 
-.certification-error {
+.evaluation-error {
   color: #ef4444;
 }
 
@@ -1016,15 +1017,15 @@ body {
 }
 
 /* Expandable Row Styles */
-.cert-table tbody tr.expanded-row {
+.eval-table tbody tr.expanded-row {
   background: rgba(102, 126, 234, 0.1);
 }
 
-.cert-table tbody tr:hover {
+.eval-table tbody tr:hover {
   background: rgba(255, 255, 255, 0.05);
 }
 
-.cert-table tbody tr.expanded-row:hover {
+.eval-table tbody tr.expanded-row:hover {
   background: rgba(102, 126, 234, 0.15);
 }
 

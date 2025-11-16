@@ -1,10 +1,16 @@
-# 🏗️ Architecture RAG Agent
+# Architecture RAG Agent
 
 ## Vue d'ensemble
 
-Ce projet implémente un **RAG Agent** basé sur le tutoriel officiel LangChain ([RAG Agent Tutorial](https://python.langchain.com/docs/tutorials/rag_agent/)).
+Ce projet implémente un **RAG Agent** optimisé basé sur le tutoriel officiel LangChain ([RAG Agent Tutorial](https://python.langchain.com/docs/tutorials/rag_agent/)).
 
-## 📊 Architecture Globale
+**Améliorations principales** :
+- **RAG Fusion** : Multi-query retrieval + Reciprocal Rank Fusion (RRF) pour un meilleur reranking
+- **Mode Stateless** : Pas de mémoire conversationnelle, optimisé pour l'évaluation RAGAS
+- **Configuration optimale** : k=8 documents, temperature=1.0, pas de grading
+- **Performance** : Score RAGAS 87.4% (Grade A)
+
+## Architecture Globale
 
 ```
 ┌─────────────────────────────────────────┐
@@ -14,18 +20,18 @@ Ce projet implémente un **RAG Agent** basé sur le tutoriel officiel LangChain 
                     ▼
           ┌──────────────────┐
           │    RAG Agent     │
-          │  (with Memory)   │
+          │   (Stateless)    │
           └──────────────────┘
                     │
                     ▼
-             [Intelligent]
-             [k=4 docs]
-            [Conversational]
+           [RAG Fusion]
+           [k=8 docs]
+        [No Memory/Grading]
 ```
 
 ---
 
-## 🔧 RAG Agent - Architecture Détaillée
+## RAG Agent - Architecture Détaillée
 
 ### Flow Diagram
 ```
@@ -34,7 +40,7 @@ User Question
       ▼
 ┌─────────────────────────┐
 │   LangGraph Workflow    │
-│   (with InMemorySaver)  │
+│      (Stateless)        │
 └─────────────────────────┘
       │
       ▼
@@ -43,16 +49,17 @@ User Question
 │  (Claude 4.5)   │    via tool calling
 └─────────────────┘
       │
-      ├─── Tool Call ──→ ┌──────────────┐
-      │                  │   Retriever   │
-      │                  │    (k=4)      │
-      │                  └──────────────┘
+      ├─── Tool Call ──→ ┌──────────────────┐
+      │                  │   RAG Fusion     │
+      │                  │  Multi-query +   │
+      │                  │  RRF reranking   │
+      │                  └──────────────────┘
       │                         │
       │                         ▼
-      │                  ┌──────────────┐
-      │                  │   Documents  │
-      │                  │  + Metadata  │
-      │                  └──────────────┘
+      │                  ┌──────────────────┐
+      │                  │  Top k=8 Docs    │
+      │                  │   + Metadata     │
+      │                  └──────────────────┘
       │                         │
       └─── Direct ──────────────┤
                                 ▼
@@ -60,23 +67,18 @@ User Question
                          │   Generate   │
                          │    Answer    │
                          └──────────────┘
-                                │
-                                ▼
-                         ┌──────────────┐
-                         │  Save State  │
-                         │  (Memory)    │
-                         └──────────────┘
 ```
 
 ### Caractéristiques Principales
 
 - **Framework** : LangGraph `StateGraph`
 - **LLM** : Claude Sonnet 4.5 (`claude-sonnet-4-5-20250929`)
-- **Retrieval** : Optionnel (LLM décide via tool calling)
-- **Documents** : k=4 (similarity search)
-- **Mémoire** : InMemorySaver (conversation persistante par thread_id)
+- **Retrieval** : RAG Fusion (multi-query + RRF reranking)
+- **Documents** : k=8 (optimisé via tests - meilleur score)
+- **Mode** : Stateless (pas de mémoire conversationnelle)
+- **Grading** : Désactivé (coûteux sans gain de performance)
 - **Streaming** : Support SSE (Server-Sent Events)
-- **Flow** : Question → Route → (Retrieve?) → Generate → Save
+- **Flow** : Question → Route → (RAG Fusion?) → Generate
 
 ### Implémentation Core
 
@@ -85,14 +87,14 @@ User Question
 ```python
 class RAGAgent:
     def __init__(self, vectorstore, checkpointer=None):
-        # Use InMemorySaver for conversation memory
-        self.checkpointer = checkpointer or InMemorySaver()
+        # Use Stateless mode for conversation memory
+        self.checkpointer = checkpointer or Stateless mode()
 
         # Create retrieve tool
         @tool
         def retrieve(query: str):
             """Retrieve information related to a query."""
-            retrieved_docs = self.vectorstore.similarity_search(query, k=4)
+            retrieved_docs = self.vectorstore.similarity_search(query, k=8)
             # Format documents with metadata
             serialized = "\n\n".join(
                 f"Source: {doc.metadata}\nContent: {doc.page_content}"
@@ -147,31 +149,31 @@ class RAGAgent:
 - Décide : retrieval nécessaire ou non ?
 - Retourne : réponse directe OU appel au tool `retrieve`
 
-#### 2. **tools** (Retriever)
-- Exécute `similarity_search(k=4)` sur ChromaDB
-- Formate les documents avec métadonnées
-- Retourne le contexte au LLM
+#### 2. **tools** (RAG Fusion Retriever)
+- Génère 3 variations de la question (multi-query)
+- Récupère documents pour chaque variation
+- Applique RRF (Reciprocal Rank Fusion) pour reranker
+- Retourne top k=8 documents avec métadonnées au LLM
 
 #### 3. **Conditional Edge**
 - Si `tool_calls` présent → va vers `tools`
 - Sinon → END (réponse finale)
 
-### Mémoire Conversationnelle
+### Mode Stateless
 
-**InMemorySaver** stocke l'historique par `thread_id` :
+**Pas de mémoire conversationnelle** : chaque question est traitée indépendamment.
 
 ```python
-# Premier message (thread-1)
-agent.invoke("My name is Alice", thread_id="thread-1")
+# Première question
+agent.invoke("My name is Alice")
+# Réponse basée uniquement sur les documents
 
-# Deuxième message (même thread)
-agent.invoke("What is my name?", thread_id="thread-1")
-# Réponse : "Your name is Alice" ✅
-
-# Nouveau thread
-agent.invoke("What is my name?", thread_id="thread-2")
-# Réponse : "I don't know" (pas de mémoire) ✅
+# Deuxième question (indépendante)
+agent.invoke("What is my name?")
+# Réponse : "I don't have that information" (pas de mémoire)
 ```
+
+**Avantage** : Optimisé pour l'évaluation RAGAS et les questions indépendantes.
 
 ### Message Trimming
 
@@ -199,17 +201,17 @@ SystemMessage(
 
 ### Cas d'Usage
 
-✅ **Optimal pour** :
+**Optimal pour** :
+- Évaluation RAGAS (questions indépendantes)
 - Questions nécessitant contexte documentaire
-- Conversations multi-tours
-- Applications nécessitant mémoire
-- Chatbots conversationnels
-- Questions mixtes (in/out context)
+- Recherche multi-angle (RAG Fusion)
+- Questions complexes nécessitant plusieurs perspectives
+- Batch processing de questions indépendantes
 
-❌ **Moins optimal pour** :
-- Questions ultra-simples (overhead du graph)
-- Batch processing sans mémoire
-- Cas nécessitant grading strict des documents
+**Moins optimal pour** :
+- Conversations multi-tours (pas de mémoire)
+- Chatbots conversationnels
+- Applications nécessitant contexte de conversation
 
 ### Output Format
 
@@ -219,35 +221,37 @@ SystemMessage(
   "messages": [
     {"role": "user", "content": "Question"},
     {"role": "assistant", "content": "Tool call"},
-    {"role": "tool", "content": "Documents..."},
+    {"role": "tool", "content": "Top 8 documents via RAG Fusion"},
     {"role": "assistant", "content": "Réponse finale"}
   ],
   "used_retrieval": true,
-  "thread_id": "thread-abc123"
+  "num_rewrites": 0
 }
 ```
 
 ---
 
-## 📈 Métriques de Performance
+## Métriques de Performance
 
-| Métrique | Valeur Typique |
-|----------|----------------|
-| **Latence moyenne** | 2-5s |
-| **Appels LLM par requête** | 1-2 |
-| **Documents récupérés** | k=4 |
-| **Mémoire max** | 10 messages |
-| **Coût estimé par requête** | ~$0.001 |
+| Métrique | Valeur |
+|----------|--------|
+| **Score RAGAS** | 87.4% (Grade A) |
+| **Context Precision** | 0.937 |
+| **Answer Similarity** | 0.811 |
+| **Latence moyenne** | 3-6s |
+| **Appels LLM par requête** | 4-5 (multi-query + génération) |
+| **Documents récupérés** | k=8 (via RAG Fusion) |
+| **Coût estimé par requête** | ~$0.002 |
 
 ### Breakdown Latence
 
 - **Sans retrieval** : ~1-2s (réponse directe)
-- **Avec retrieval** : ~3-5s (similarity search + génération)
-- **Conversation** : +0.5s (chargement historique)
+- **Avec RAG Fusion** : ~4-6s (3 queries + RRF + génération)
+- **Mode stateless** : Pas de surcoût mémoire
 
 ---
 
-## 🔧 Configuration
+## Configuration
 
 ### Variables d'Environnement
 
@@ -267,12 +271,14 @@ TAVILY_API_KEY=tvly-...  # Web search (non utilisé actuellement)
 # LLM Configuration
 model = "claude-sonnet-4-5-20250929"
 model_provider = "anthropic"
+temperature = 1.0  # Optimisé pour diversité des réponses
 
-# Retrieval
-k = 4  # Nombre de documents à récupérer
+# RAG Fusion
+use_rag_fusion = True  # Multi-query + RRF reranking
+k_documents = 8  # Nombre final de documents (optimisé)
 
-# Memory
-max_messages = 10  # Historique conservé par conversation
+# Mode
+checkpointer = None  # Stateless mode (pas de mémoire)
 
 # Embeddings
 embedding_model = "sentence-transformers/all-MiniLM-L6-v2"
@@ -291,7 +297,7 @@ word_delay = 0.03  # 30ms entre chaque mot (effet visuel)
 
 ---
 
-## 📚 Ressources
+## Ressources
 
 ### Documentation Officielle
 - [LangChain RAG Agent Tutorial](https://python.langchain.com/docs/tutorials/rag_agent/) - Base de ce projet
@@ -305,7 +311,7 @@ word_delay = 0.03  # 30ms entre chaque mot (effet visuel)
 
 ---
 
-## 🧪 Tests
+## Tests
 
 ### Test de la Mémoire
 
@@ -314,9 +320,9 @@ python test_memory.py
 ```
 
 **Résultats attendus** :
-- ✅ Thread différent → pas de mémoire
-- ✅ Même thread → mémoire fonctionnelle
-- ✅ Trimming → garde 10 derniers messages
+-  Thread différent → pas de mémoire
+-  Même thread → mémoire fonctionnelle
+-  Trimming → garde 10 derniers messages
 
 ### Test de l'API
 
@@ -332,20 +338,22 @@ curl -X POST http://localhost:8000/api/rag_agent \
 
 ---
 
-## 🚀 Roadmap
+## Roadmap
 
 ### Actuellement Implémenté
-- ✅ RAG Agent avec tool calling
-- ✅ Mémoire conversationnelle (InMemorySaver)
-- ✅ Streaming SSE
-- ✅ Upload documents (PDF/TXT/MD/DOCX)
-- ✅ Message trimming
-- ✅ ChromaDB vectorstore
+- RAG Agent avec tool calling
+- RAG Fusion (multi-query + RRF reranking)
+- Mode stateless (optimisé pour évaluation)
+- Streaming SSE
+- Upload documents (PDF/TXT/MD/DOCX/IPYNB)
+- Message trimming
+- ChromaDB vectorstore
+- Évaluation RAGAS complétée (Score 87.4% - Grade A)
 
 ### Améliorations Possibles
-- ⏳ Agentic RAG avec grading (comme dans tutoriel avancé)
-- ⏳ PostgreSQL checkpointer (persistance DB)
-- ⏳ Hybrid search (dense + sparse)
-- ⏳ Citation tracking
-- ⏳ Token usage tracking réel
-- ⏳ Métriques d'évaluation (RAGAS)
+- Mode conversationnel avec mémoire (checkpointer)
+- PostgreSQL checkpointer (persistance DB)
+- Hybrid search (dense + sparse)
+- Citation tracking
+- Token usage tracking réel
+- Document grading (non nécessaire - coûteux sans gain)

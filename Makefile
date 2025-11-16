@@ -24,8 +24,8 @@ clean: ## Clean up containers and volumes
 	docker-compose down -v
 	rm -rf data/chroma_db/*
 
-test: ## Test the API
-	./test_api.sh
+test: ## Run evaluation tests
+	./venv/bin/python backend/scripts/run_evaluation.py --limit 3
 
 dev: ## Run in development mode (without Docker)
 	cd backend/api && python main.py

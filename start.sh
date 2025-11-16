@@ -1,35 +1,45 @@
 #!/bin/bash
-# Script de démarrage pour Agentic RAG
-# Usage: ./start.sh
+# Docker startup script for Agentic RAG
+# Bootcamp Evaluation Project
 
-echo "🚀 Démarrage d'Agentic RAG..."
-echo ""
+echo "🐳 Starting Agentic RAG with Docker"
+echo "===================================="
 
-# Démarrer Docker Compose
-echo "📦 Démarrage des containers Docker..."
-docker-compose up -d
-
-if [ $? -eq 0 ]; then
-    echo "✅ Containers Docker démarrés"
-else
-    echo "❌ Erreur lors du démarrage de Docker"
+# Check if .env exists
+if [ ! -f .env ]; then
+    echo "⚠️  .env file not found!"
+    echo "Creating from template..."
+    cp .env.example .env
+    echo "Please edit .env and add your ANTHROPIC_API_KEY"
     exit 1
 fi
 
-echo ""
-echo "⏳ Attente du démarrage du backend (5 secondes)..."
-sleep 5
+# Check if ANTHROPIC_API_KEY is set
+if ! grep -q "ANTHROPIC_API_KEY=sk-" .env; then
+    echo "❌ ANTHROPIC_API_KEY not configured in .env"
+    echo "Please add your key to .env file"
+    exit 1
+fi
+
+echo "✅ Environment configured"
+
+# Build and start containers
+echo "🔨 Building containers..."
+docker-compose build
+
+echo "🚀 Starting services..."
+docker-compose up -d
 
 echo ""
-echo "🎨 Démarrage du frontend..."
+echo "✅ Services started!"
+echo "===================================="
+echo "📍 Backend API: http://localhost:8000"
+echo "📍 Frontend: http://localhost:3000"
+echo "📍 API Docs: http://localhost:8000/docs"
 echo ""
-echo "📍 URLs disponibles:"
-echo "   - Frontend: http://localhost:5173"
-echo "   - Backend API: http://localhost:8000"
-echo "   - API Docs: http://localhost:8000/docs"
+echo "📝 Useful commands:"
+echo "  docker-compose logs -f     # View logs"
+echo "  docker-compose down        # Stop services"
+echo "  docker-compose restart     # Restart services"
+echo "  ./stop.sh                  # Stop all services"
 echo ""
-echo "💡 Appuie sur Ctrl+C pour arrêter le frontend"
-echo "   (les containers Docker continueront de tourner)"
-echo ""
-
-cd frontend && npm run dev
