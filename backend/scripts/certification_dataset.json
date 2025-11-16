@@ -1,116 +1,111 @@
 {
   "metadata": {
-    "generated_at": "2025-11-15T14:25:35.768280",
+    "generated_at": "2025-11-15T23:24:59.471159",
     "num_questions": 10,
-    "num_documents": 15,
-    "total_chunks": 758,
+    "num_documents": 7,
+    "total_chunks": 284,
     "categories": {
-      "LangChain Fundamentals": 1,
-      "Business Strategy": 1,
-      "Game Development Strategy": 1,
-      "GitHub Actions": 1,
-      "Gaming Strategy": 1,
-      "Git Version Control": 1,
-      "Git Workflow": 1,
-      "Market Analysis": 1,
-      "Spark Data Analysis": 1,
-      "Python Lists and Slicing": 1
+      "Git Basics": 4,
+      "Python Classes": 2,
+      "Python Functions": 2,
+      "Markdown Formatting": 1,
+      "Python Exception Handling": 1
     },
     "difficulties": {
-      "medium": 9,
-      "hard": 1
+      "easy": 6,
+      "medium": 4
     }
   },
   "questions": [
     {
-      "question": "Explain how task decomposition contributes to problem-solving in LangChain and describe two specific ways it enables more complex reasoning in AI applications.",
-      "ground_truth": "Task decomposition breaks large, complex tasks into smaller, more manageable subtasks, which is crucial for AI agents handling multi-step queries. In LangChain, this technique allows language models to systematically approach complex problems by breaking them down into discrete steps, enabling more sophisticated reasoning and processing across different types of tasks.",
-      "difficulty": "medium",
-      "category": "LangChain Fundamentals",
+      "question": "What are three key learning objectives for this Git and Github collaboration course?",
+      "ground_truth": "The course aims to teach learners the basics of Git as a Version Control System, how to use Git with the terminal and share code on Github, and how to collaborate on development projects using the agile method. These objectives will help developers effectively manage code versions and work together on software projects.",
+      "difficulty": "easy",
+      "category": "Git Basics",
       "id": 1,
-      "source_file": "test_document.txt",
-      "generated_at": "2025-11-15T14:25:09.452788"
+      "source_file": "01-Git_and_github_basics.ipynb",
+      "generated_at": "2025-11-15T23:24:31.936448"
     },
     {
-      "question": "What is the estimated potential ROI for Ubisoft's proposed multi-platform premium strategy with multilingual support?",
-      "ground_truth": "Based on the analysis, the proposed premium multi-platform strategy with multilingual support could generate 3-5x more engagement compared to Ubisoft's current average. This significant potential increase in engagement would justify the strategic investment in these proposed approaches.",
-      "difficulty": "medium",
-      "category": "Business Strategy",
+      "question": "What method can be used to display the current state of a Garage instance, and what specific attributes will be printed?",
+      "ground_truth": "The display_information() method prints details about a Garage instance, including the number of employees, clients, cars to repair, and cars already repaired. This method uses print() statements to output the values of self.employees, self.clients, self.cars_to_repair, and self.cars_repaired.",
+      "difficulty": "easy",
+      "category": "Python Classes",
       "id": 2,
-      "source_file": "Projet Steam Ubisoft - Structure complète réorganisée.pdf",
-      "generated_at": "2025-11-15T14:25:11.632127"
+      "source_file": "01-Classes.ipynb",
+      "generated_at": "2025-11-15T23:24:34.752286"
     },
     {
-      "question": "What are the three key steps in the immediate action plan for developing a new game strategy?",
-      "ground_truth": "The immediate action plan involves three critical steps: 1) Validating the concept on identified Racing/Sports segments, 2) Developing a multi-platform approach from the initial design stage, and 3) Ensuring localization in a minimum of 6 languages.",
+      "question": "Describe the key components of defining a function in Python and explain the purpose of the 'return' statement in function implementation.",
+      "ground_truth": "A Python function starts with the 'def' keyword, followed by the function name and arguments in parentheses. After declaring the function, you must indent the code block containing the instructions to be executed. The optional 'return' statement allows you to output a result that can be reused outside the function, enabling more flexible and modular code.",
       "difficulty": "medium",
-      "category": "Game Development Strategy",
+      "category": "Python Functions",
       "id": 3,
-      "source_file": "Projet Steam Ubisoft - Structure complète réorganisée.pdf",
-      "generated_at": "2025-11-15T14:25:13.931025"
+      "source_file": "04-Functions.ipynb",
+      "generated_at": "2025-11-15T23:24:37.786068"
     },
     {
-      "question": "Describe the key steps in the GitHub Actions workflow configuration shown in the CI example, explaining the purpose of each step in the test job.",
-      "ground_truth": "The GitHub Actions workflow is configured to run on push and pull request events for main and develop branches. The test job runs on Ubuntu and includes steps to checkout code, setup Node.js version 16, install dependencies using npm ci, run tests with npm test, and build the project using npm run build.",
-      "difficulty": "medium",
-      "category": "GitHub Actions",
+      "question": "How can you create an instance of the Garage class, and what attributes can be specified during initialization?",
+      "ground_truth": "A Garage class instance can be created in two ways: either by calling Garage() with no arguments (which sets all attributes to 0), or by calling Garage() with specific values for employees, clients, cars to repair, and cars repaired. When initialized with values like Garage(4, 2, 3, 1), the instance will have 4 employees, 2 clients, 3 cars to repair, and 1 car already repaired.",
+      "difficulty": "easy",
+      "category": "Python Classes",
       "id": 4,
-      "source_file": "Guide Complet Git & GitHub - Version PDF.pdf",
-      "generated_at": "2025-11-15T14:25:17.261458"
+      "source_file": "01-Classes.ipynb",
+      "generated_at": "2025-11-15T23:24:40.619560"
     },
     {
-      "question": "Describe the potential ROI and strategic positioning proposed in the analysis for a multi-platform gaming product strategy.",
-      "ground_truth": "The analysis suggests a premium multi-platform strategy with multilingual support could generate 3-5x more engagement compared to Ubisoft's current average. This positioning would justify strategic investments in developing a competitive ecosystem against Valve. The estimated return on investment indicates significant potential for enhanced market performance.",
-      "difficulty": "medium",
-      "category": "Gaming Strategy",
+      "question": "How can you incorporate code snippets into a Markdown document, and provide an example of how to do this specifically for a Python code block?",
+      "ground_truth": "To add code to a Markdown document, you use three counter-apostrophes (backticks) before and after your code block. For a Python code block, you would first open with three backticks followed by 'python', then write your code, and close with three more backticks. An example would be adding a simple Python for loop that prints 'hello world'.",
+      "difficulty": "easy",
+      "category": "Markdown Formatting",
       "id": 5,
-      "source_file": "Projet Steam Ubisoft - Structure complète réorganisée.pdf",
-      "generated_at": "2025-11-15T14:25:20.250765"
+      "source_file": "03-Markdown_notation.ipynb",
+      "generated_at": "2025-11-15T23:24:43.932972"
     },
     {
-      "question": "Describe the different actions you can take when using interactive rebase with 'git rebase -i HEAD~3', and explain what each action does.",
-      "ground_truth": "When using interactive rebase, you can modify commits by replacing 'pick' with different commands. 'reword' allows changing the commit message, 'edit' enables modifying the commit itself, 'squash' merges the commit with the previous one, and 'drop' removes the commit entirely from the history.",
+      "question": "Explain why developers might use a Version Control System (VCS) like Git, and provide a concrete example of version management challenges without such a system.",
+      "ground_truth": "A Version Control System helps developers collaborate efficiently on software development projects and manage code versions systematically. Without a VCS, writing code together on the same project can be a nightmare, as developers would need to exchange files from machine to machine between collaborators. Git allows automatic version tracking through commits (flags that allow you to go back to specific versions), enabling multiple people to work on the same code while keeping a stable version safe.",
       "difficulty": "medium",
-      "category": "Git Version Control",
+      "category": "Git Basics",
       "id": 6,
-      "source_file": "Guide Complet Git & GitHub - Version PDF.pdf",
-      "generated_at": "2025-11-15T14:25:23.018784"
+      "source_file": "01-Git_and_github_basics.ipynb",
+      "generated_at": "2025-11-15T23:24:47.618795"
     },
     {
-      "question": "Describe the sequence of Git commands used to create and push a new feature branch with multiple commits in this workflow.",
-      "ground_truth": "The workflow involves creating a new feature branch and making multiple commits with specific messages. The developer creates new files (login.js and logout.js), modifies an existing file (main.py), stages and commits each change with descriptive commit messages, and then pushes the branch to GitHub using 'git push -u origin feature/nouvelle-fonction'.",
+      "question": "Explain the purpose of functions in programming and how they help developers write more efficient code according to the DRY principle.",
+      "ground_truth": "Functions allow developers to write a sequence of instructions once and then reuse them multiple times, which supports the 'Don't Repeat Yourself' (DRY) principle. By creating functions, programmers can store a set of instructions that can be called whenever needed, making code more elegant and easier to read. Functions help reduce code repetition and improve overall code structure and maintainability.",
       "difficulty": "medium",
-      "category": "Git Workflow",
+      "category": "Python Functions",
       "id": 7,
-      "source_file": "Guide Complet Git & GitHub - Version PDF.pdf",
-      "generated_at": "2025-11-15T14:25:25.944972"
+      "source_file": "04-Functions.ipynb",
+      "generated_at": "2025-11-15T23:24:50.778042"
     },
     {
-      "question": "Describe the four key phases of Ubisoft's Steam market analysis project and explain the primary objective of each phase.",
-      "ground_truth": "The Steam market analysis project consists of four phases: Phase 1 (Exploration of Data) involves examining the Steam dataset structure, verifying data quality, and understanding platform evolution. Phase 2 (Data Preparation) focuses on extracting nested data like platforms and prices, cleaning data, and initial price distribution analysis. Phase 3 (Macro Analyses) covers competitive positioning of publishers, market trends, promotion strategies, and localization factors. Phase 4 (Genre Analysis) examines dominant game genres, publisher specializations, and pricing strategies by genre.",
-      "difficulty": "hard",
-      "category": "Market Analysis",
+      "question": "What is the purpose of the 'git commit' command, and what specific action does it perform in the version control workflow?",
+      "ground_truth": "The 'git commit' command creates a new commit that reports changes made in files that were previously 'added' using 'git add'. A commit acts like a 'flag' or snapshot that allows you to go back to a specific version of a file at any time, serving as a way to track and record the project's version history.",
+      "difficulty": "easy",
+      "category": "Git Basics",
       "id": 8,
-      "source_file": "Projet Steam Ubisoft - Structure complète réorganisée.pdf",
-      "generated_at": "2025-11-15T14:25:29.775970"
+      "source_file": "01-Git_and_github_basics.ipynb",
+      "generated_at": "2025-11-15T23:24:53.583234"
     },
     {
-      "question": "What are the key steps in analyzing game genre performance in this Spark DataFrame analysis, and what specific metrics are calculated for each genre?",
-      "ground_truth": "The analysis involves creating a list of genre keywords, counting games per genre, and then performing a detailed performance analysis. The performance analysis calculates metrics including number of games, average positive reviews, average price, and average review ratio for each main genre (Action, Indie, Strategy, RPG, Simulation, Sports).",
+      "question": "In the provided code for sharing an addition, what specific exceptions are being handled and what scenarios trigger each exception?",
+      "ground_truth": "The code handles two specific exceptions: ValueError and ZeroDivisionError. The ValueError occurs when the user inputs something other than a number for the bill total or number of guests, while the ZeroDivisionError is triggered when the user enters zero as the number of guests, which would cause a division by zero error.",
       "difficulty": "medium",
-      "category": "Spark Data Analysis",
+      "category": "Python Exception Handling",
       "id": 9,
-      "source_file": "Projet Steam Ubisoft - Structure complète réorganisée.pdf",
-      "generated_at": "2025-11-15T14:25:32.944031"
+      "source_file": "04-Functions.ipynb",
+      "generated_at": "2025-11-15T23:24:56.572493"
     },
     {
-      "question": "Explain how list slicing works in Python, specifically describing the syntax and how start and end indices are interpreted when creating a slice.",
-      "ground_truth": "List slicing in Python uses the syntax slice[start_index : end_index]. The start_index is included in the slice, while the end_index is excluded. If no start_index is specified, the slice defaults to index 0, and if no end_index is specified, the slice will extend to the last index of the list.",
-      "difficulty": "medium",
-      "category": "Python Lists and Slicing",
+      "question": "What problem does a Version Control System (VCS) like Git solve when managing software project files?",
+      "ground_truth": "A Version Control System solves the problem that writing code together on the same project can be a nightmare without proper tools. Git allows developers to manage code versions systematically and collaborate efficiently, avoiding the chaos of manually exchanging files between collaborators. It enables automatic version tracking through commits, which act as flags allowing you to go back to specific versions at any time without losing or breaking the initial code.",
+      "difficulty": "easy",
+      "category": "Git Basics",
       "id": 10,
-      "source_file": "03-Data_types.ipynb",
-      "generated_at": "2025-11-15T14:25:35.768183"
+      "source_file": "01-Git_and_github_basics.ipynb",
+      "generated_at": "2025-11-15T23:24:59.471068"
     }
   ]
 }

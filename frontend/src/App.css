@@ -37,12 +37,15 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative;
 }
+
+/* Border removed for cleaner design */
 
 /* Header */
 .header {
   background: var(--bg-card);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: none;
   padding: 1rem 2rem;
   position: sticky;
   top: 0;
@@ -95,7 +98,7 @@ body {
 /* Sidebar */
 .sidebar {
   background: var(--bg-card);
-  border-right: 1px solid var(--border-color);
+  border-right: none;
   padding: 1.5rem;
   overflow-y: auto;
   height: 100vh;
@@ -224,15 +227,20 @@ body {
   flex-direction: column;
   height: 100vh;
   background: var(--bg-dark);
+  overflow: hidden;
 }
 
 .messages {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 2rem;
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+  min-height: 0;
+  position: relative;
+  z-index: 10;
 }
 
 .messages.empty {
@@ -318,6 +326,10 @@ body {
 
 .message.user {
   align-self: flex-end;
+  opacity: 1;
+  visibility: visible;
+  display: flex;
+  flex-direction: column;
 }
 
 .message.assistant {
@@ -337,6 +349,9 @@ body {
   background: var(--accent-blue);
   color: white;
   border-bottom-right-radius: 0.25rem;
+  opacity: 1;
+  visibility: visible;
+  display: block;
 }
 
 .message.assistant .message-content {
@@ -429,11 +444,16 @@ body {
 
 /* Input Form */
 .input-form {
-  display: flex;
+  display: flex !important;
   gap: 0.75rem;
   padding: 1.5rem 2rem;
   background: var(--bg-card);
   border-top: 1px solid var(--border-color);
+  flex-shrink: 0;
+  width: 100%;
+  z-index: 10;
+  visibility: visible !important;
+  opacity: 1 !important;
 }
 
 .input-field {
@@ -621,4 +641,447 @@ body {
   .sidebar {
     display: none;
   }
+}
+
+/* ========================================
+   CERTIFICATION DASHBOARD STYLES
+   ======================================== */
+
+/* Navigation Tabs */
+.app-nav-tabs {
+  display: flex;
+  gap: 1rem;
+  padding: 1rem 0;
+  padding-left: 0;
+  background: transparent;
+  border-bottom: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.app-nav-tabs button {
+  pointer-events: auto;
+}
+
+.app-nav-tabs::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 300px;
+  background: var(--bg-card);
+  z-index: -1;
+}
+
+.app-nav-tab {
+  padding: 0.75rem 1.5rem;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 500;
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.app-nav-tab:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.app-nav-tab.active {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+/* Certification Container */
+.certification-container {
+  padding: 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+  color: white;
+  height: calc(100vh - 120px);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Custom scrollbar for certification container */
+.certification-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.certification-container::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+}
+
+.certification-container::-webkit-scrollbar-thumb {
+  background: rgba(102, 126, 234, 0.5);
+  border-radius: 4px;
+}
+
+.certification-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(102, 126, 234, 0.7);
+}
+
+/* Header */
+.cert-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  padding: 2rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 16px;
+  border: none;
+}
+
+.cert-title-section {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.cert-title-section h1 {
+  font-size: 2rem;
+  margin: 0;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.cert-subtitle {
+  color: rgba(255, 255, 255, 0.6);
+  margin: 0.5rem 0 0 0;
+}
+
+.cert-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 2rem;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 1.1rem;
+}
+
+.cert-badge.passed {
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+  border: 2px solid #10b981;
+}
+
+.cert-badge.failed {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+  border: 2px solid #ef4444;
+}
+
+/* Summary Cards Grid */
+.cert-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.cert-card {
+  background: rgba(255, 255, 255, 0.05);
+  border: none;
+  border-radius: 16px;
+  padding: 1.5rem;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.cert-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.cert-card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+}
+
+.cert-card-value {
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.cert-card-footer {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.85rem;
+}
+
+/* Charts Row */
+.cert-charts-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.cert-chart-card {
+  background: rgba(255, 255, 255, 0.05);
+  border: none;
+  border-radius: 16px;
+  padding: 1.5rem;
+}
+
+.cert-chart-card h3 {
+  margin-top: 0;
+  margin-bottom: 1.5rem;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* Questions Section */
+.cert-questions-section {
+  background: rgba(255, 255, 255, 0.05);
+  border: none;
+  border-radius: 16px;
+  padding: 1.5rem;
+}
+
+.cert-questions-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.cert-questions-header h3 {
+  margin: 0;
+}
+
+.cert-category-filter {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.filter-btn {
+  padding: 0.5rem 1rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  color: white;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+}
+
+.filter-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.filter-btn.active {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-color: transparent;
+}
+
+/* Table */
+.cert-table-container {
+  overflow-x: auto;
+}
+
+.cert-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.cert-table th {
+  text-align: left;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.1);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.2);
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.cert-table td {
+  padding: 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.cert-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.question-cell {
+  max-width: 500px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.category-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  background: rgba(59, 130, 246, 0.2);
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: #60a5fa;
+}
+
+.difficulty-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.difficulty-badge.easy {
+  background: rgba(16, 185, 129, 0.2);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  color: #10b981;
+}
+
+.difficulty-badge.medium {
+  background: rgba(251, 191, 36, 0.2);
+  border: 1px solid rgba(251, 191, 36, 0.4);
+  color: #fbbf24;
+}
+
+.difficulty-badge.hard {
+  background: rgba(239, 68, 68, 0.2);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #ef4444;
+}
+
+.metric-cell {
+  font-family: 'Courier New', monospace;
+  font-weight: 600;
+}
+
+.score-cell {
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+/* Loading & Error States */
+.certification-loading,
+.certification-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  gap: 1rem;
+}
+
+.certification-error {
+  color: #ef4444;
+}
+
+.btn-retry {
+  margin-top: 1rem;
+  padding: 0.75rem 1.5rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  border-radius: 8px;
+  color: white;
+  cursor: pointer;
+  font-weight: 600;
+  transition: transform 0.2s;
+}
+
+.btn-retry:hover {
+  transform: scale(1.05);
+}
+
+.spinner {
+  width: 50px;
+  height: 50px;
+  border: 4px solid rgba(255, 255, 255, 0.1);
+  border-top-color: #667eea;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Expandable Row Styles */
+.cert-table tbody tr.expanded-row {
+  background: rgba(102, 126, 234, 0.1);
+}
+
+.cert-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.cert-table tbody tr.expanded-row:hover {
+  background: rgba(102, 126, 234, 0.15);
+}
+
+.expanded-details td {
+  padding: 0 !important;
+  background: rgba(255, 255, 255, 0.02);
+  border-top: 1px solid rgba(102, 126, 234, 0.3);
+}
+
+.question-details {
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.detail-section {
+  background: rgba(255, 255, 255, 0.05);
+  padding: 1.5rem;
+  border-radius: 12px;
+  border-left: 4px solid #667eea;
+}
+
+.detail-section h4 {
+  margin: 0 0 1rem 0;
+  color: #667eea;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.detail-section p {
+  margin: 0;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.context-item {
+  background: rgba(255, 255, 255, 0.03);
+  padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 0.75rem;
+}
+
+.context-item:last-child {
+  margin-bottom: 0;
+}
+
+.context-item strong {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #8b5cf6;
+  font-size: 0.9rem;
+}
+
+.context-item p {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.85);
 }

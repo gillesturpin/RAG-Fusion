@@ -17,7 +17,6 @@ from rags.rag_agent import RAGAgent
 from rags.evaluator import CertificationEvaluator
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Chroma
-from langgraph.checkpoint.memory import InMemorySaver
 from dotenv import load_dotenv
 
 # Configure logging
@@ -33,7 +32,11 @@ load_dotenv()
 def run_certification(
     dataset_file="certification_dataset.json",
     output_file=None,
-    limit=None
+    limit=None,
+    use_rag_fusion=True,
+    use_grading=True,
+    temperature=1.0,  # Back to 1.0 (0.0 was worse)
+    k_documents=6
 ):
     """
     Lance l'évaluation de certification complète
@@ -42,6 +45,10 @@ def run_certification(
         dataset_file: Fichier JSON du dataset
         output_file: Fichier de sortie (auto-généré si None)
         limit: Limiter à N questions (pour tests rapides)
+        use_rag_fusion: Enable RAG Fusion (multi-query + RRF) [default: True]
+        use_grading: Enable LLM-based relevance grading [default: True]
+        temperature: Model temperature for generation [default: 1.0]
+        k_documents: Number of documents to retrieve with RAG Fusion [default: 6]
     """
 
     print("=" * 80)
@@ -84,20 +91,37 @@ def run_certification(
         embedding_function=embeddings
     )
 
-    checkpointer = InMemorySaver()
-    agent = RAGAgent(vectorstore, checkpointer=checkpointer)
+    # No checkpointer for evaluation - each question is independent
+    agent = RAGAgent(
+        vectorstore,
+        checkpointer=None,
+        use_rag_fusion=use_rag_fusion,
+        use_grading=use_grading,
+        temperature=temperature,
+        k_documents=k_documents
+    )
 
-    print("✅ RAG Agent initialized")
+    # Print configuration
+    config_info = []
+    if use_rag_fusion:
+        config_info.append("RAG Fusion")
+    if use_grading:
+        config_info.append("Grading")
+    # Always show temperature for transparency
+    config_info.append(f"T={temperature}")
+    if k_documents != 6:
+        config_info.append(f"k={k_documents}")
+    config_str = " + ".join(config_info) if config_info else "Baseline (no optimizations)"
+
+    print(f"✅ RAG Agent initialized ({config_str})")
     print()
 
     # 3. Initialize Evaluator
     print("🎯 Initializing RAGAS Evaluator...")
     evaluator = CertificationEvaluator(agent)
-    print("✅ Evaluator ready with 4 metrics:")
-    print("   - context_precision (retrieval)")
-    print("   - faithfulness (no hallucinations)")
-    print("   - answer_relevancy (relevance)")
-    print("   - answer_correctness (accuracy)")
+    print("✅ Evaluator ready with 2 essential metrics:")
+    print("   - context_precision (retrieval quality) - 30% weight")
+    print("   - answer_similarity (semantic similarity - more tolerant) - 70% weight")
     print()
 
     # 4. Run evaluation
@@ -122,14 +146,12 @@ def run_certification(
                 thread_id=f"cert-eval-{i}"
             )
 
-            # Get verdict
+            # Get verdict (2 metrics)
             verdict = evaluator.get_certification_verdict(
                 result["overall_score"],
                 {
-                    "context_precision": result["scores"]["retrieval"]["context_precision"],
-                    "faithfulness": result["scores"]["generation"]["faithfulness"],
-                    "answer_relevancy": result["scores"]["generation"]["answer_relevancy"],
-                    "answer_correctness": result["scores"]["generation"]["answer_correctness"]
+                    "context_precision": result["scores"]["context_precision"],
+                    "answer_similarity": result["scores"]["answer_similarity"]
                 }
             )
 
@@ -147,10 +169,8 @@ def run_certification(
             # Show quick summary
             status = "✅ PASS" if verdict["passed"] else "❌ FAIL"
             print(f"   {status} - Overall: {verdict['overall_score']:.3f} ({verdict['grade']})")
-            print(f"   Scores: CP={result['scores']['retrieval']['context_precision']:.2f} | "
-                  f"F={result['scores']['generation']['faithfulness']:.2f} | "
-                  f"AR={result['scores']['generation']['answer_relevancy']:.2f} | "
-                  f"AC={result['scores']['generation']['answer_correctness']:.2f}")
+            print(f"   Scores: Context Precision={result['scores']['context_precision']:.2f} | "
+                  f"Answer Similarity={result['scores']['answer_similarity']:.2f}")
 
             if verdict["passed"]:
                 passed_count += 1
@@ -171,23 +191,19 @@ def run_certification(
         print("❌ No results to report")
         sys.exit(1)
 
-    # Average scores
+    # Average scores (2 metrics)
     avg_scores = {
-        "context_precision": sum(r["scores"]["retrieval"]["context_precision"] for r in results) / len(results),
-        "faithfulness": sum(r["scores"]["generation"]["faithfulness"] for r in results) / len(results),
-        "answer_relevancy": sum(r["scores"]["generation"]["answer_relevancy"] for r in results) / len(results),
-        "answer_correctness": sum(r["scores"]["generation"]["answer_correctness"] for r in results) / len(results),
+        "context_precision": sum(r["scores"]["context_precision"] for r in results) / len(results),
+        "answer_similarity": sum(r["scores"]["answer_similarity"] for r in results) / len(results),
     }
 
     overall_avg = sum(r["overall_score"] for r in results) / len(results)
 
     print(f"📊 Average Scores (n={len(results)}):")
-    print(f"   Context Precision:  {avg_scores['context_precision']:.3f}")
-    print(f"   Faithfulness:       {avg_scores['faithfulness']:.3f}")
-    print(f"   Answer Relevancy:   {avg_scores['answer_relevancy']:.3f}")
-    print(f"   Answer Correctness: {avg_scores['answer_correctness']:.3f} ⭐")
+    print(f"   Context Precision (30%):  {avg_scores['context_precision']:.3f}")
+    print(f"   Answer Similarity (70%):  {avg_scores['answer_similarity']:.3f} ⭐")
     print()
-    print(f"   Overall Score:      {overall_avg:.3f}")
+    print(f"   Overall Score (weighted): {overall_avg:.3f}")
     print()
     print(f"🎯 Pass Rate: {passed_count}/{len(results)} ({100*passed_count/len(results):.1f}%)")
     print()
@@ -302,6 +318,28 @@ if __name__ == "__main__":
         default=None,
         help="Limit to N questions (for testing)"
     )
+    parser.add_argument(
+        "--no-rag-fusion",
+        action="store_true",
+        help="Disable RAG Fusion (multi-query + RRF)"
+    )
+    parser.add_argument(
+        "--no-grading",
+        action="store_true",
+        help="Disable LLM-based relevance grading"
+    )
+    parser.add_argument(
+        "--temperature",
+        type=float,
+        default=1.0,
+        help="Model temperature for generation (default: 1.0)"
+    )
+    parser.add_argument(
+        "--k-documents",
+        type=int,
+        default=6,
+        help="Number of documents to retrieve with RAG Fusion (default: 6)"
+    )
 
     args = parser.parse_args()
 
@@ -309,7 +347,11 @@ if __name__ == "__main__":
         exit_code = run_certification(
             dataset_file=args.dataset,
             output_file=args.output,
-            limit=args.limit
+            limit=args.limit,
+            use_rag_fusion=not args.no_rag_fusion,
+            use_grading=not args.no_grading,
+            temperature=args.temperature,
+            k_documents=args.k_documents
         )
         sys.exit(exit_code)
 

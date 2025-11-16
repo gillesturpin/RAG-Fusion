@@ -2,11 +2,12 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import axios from 'axios'
 import {
   Send, Brain, Zap, Database, DollarSign,
-  Upload, FileText, Trash2, X, Copy, Check, Globe
+  Upload, FileText, Trash2, X, Copy, Check, Globe, Award, MessageSquare
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
+import CertificationDashboard from './CertificationDashboard'
 import './App.css'
 
 // Dynamic API URL
@@ -17,6 +18,7 @@ const API_URL = window.location.hostname === 'localhost'
   : ''  // Production: use relative URLs, nginx handles proxying
 
 function App() {
+  const [activeTab, setActiveTab] = useState('chat') // 'chat' or 'certification'
   const [question, setQuestion] = useState('')
   const [messages, setMessages] = useState([])
   const [loading, setLoading] = useState(false)
@@ -366,6 +368,26 @@ function App() {
 
   return (
     <div className="app">
+      {/* Navigation Tabs */}
+      <div className="app-nav-tabs" style={{ paddingLeft: '2rem' }}>
+        <button
+          className={`app-nav-tab ${activeTab === 'chat' ? 'active' : ''}`}
+          onClick={() => setActiveTab('chat')}
+        >
+          Chat
+        </button>
+        <button
+          className={`app-nav-tab ${activeTab === 'certification' ? 'active' : ''}`}
+          onClick={() => setActiveTab('certification')}
+          style={{ marginLeft: '0.5rem' }}
+        >
+          Evaluation
+        </button>
+      </div>
+
+      {/* Chat View */}
+      {activeTab === 'chat' && (
+      <>
       <div className="main-container">
         {/* Sidebar - Documents Only */}
         <aside className="sidebar">
@@ -525,7 +547,7 @@ function App() {
         {/* Main Chat Area */}
         <main className="chat-container">
           <div className={`messages ${messages.length === 0 ? 'empty' : ''}`}>
-            {messages.length === 0 ? (
+            {messages.length === 0 && (
               <div className="empty-state">
                 <h2 style={{marginBottom: '2rem', fontSize: '2rem', color: 'var(--text-primary)'}}>Agentic RAG</h2>
 
@@ -569,10 +591,22 @@ function App() {
                   </button>
                 </form>
               </div>
-            ) : (
-              messages.filter(msg => msg.content || !msg.isStreaming).map((msg, idx) => (
-                <div key={idx} className={`message ${msg.role}`}>
-                  <div className="message-content">
+            )}
+            {messages.filter(msg => msg.content || msg.role === 'user').map((msg, idx) => (
+                <div key={idx} className={`message ${msg.role}`} style={msg.role === 'user' ? {
+                  alignSelf: 'flex-end',
+                  maxWidth: '70%',
+                  display: 'flex',
+                  opacity: 1,
+                  visibility: 'visible'
+                } : {}}>
+                  <div className="message-content" style={msg.role === 'user' ? {
+                    background: '#667eea',
+                    color: 'white',
+                    padding: '1rem 1.25rem',
+                    borderRadius: '1rem',
+                    borderBottomRightRadius: '0.25rem'
+                  } : {}}>
                     {msg.role === 'assistant' ? (
                       <>
                         {msg.content && (
@@ -606,8 +640,7 @@ function App() {
                     )}
                   </div>
                 </div>
-              ))
-            )}
+              ))}
             {loading && (
               <div className="message assistant loading-message">
                 <div className="loading-dots">
@@ -621,7 +654,10 @@ function App() {
           </div>
 
           {messages.length > 0 && (
-            <div>
+            <div style={{
+              flexShrink: 0,
+              width: '100%'
+            }}>
               <form className="input-form" onSubmit={handleSubmit}>
                 <input
                   type="text"
@@ -789,6 +825,13 @@ function App() {
             </div>
           </div>
         </div>
+      )}
+      </>
+      )}
+
+      {/* Certification View */}
+      {activeTab === 'certification' && (
+        <CertificationDashboard API_URL={API_URL} />
       )}
     </div>
   )

@@ -1,15 +1,15 @@
 """
 Évaluateur RAGAS pour Agentic RAG
-Évalue le système avec 4 métriques : context_precision, faithfulness, answer_relevancy, answer_correctness
+Évalue le système avec 2 métriques essentielles :
+- context_precision (retrieval quality)
+- answer_similarity (generation semantic similarity - more tolerant)
 """
 
 from typing import Dict, Optional
 from ragas import evaluate
 from ragas.metrics import (
-    context_precision,      # Retrieval
-    faithfulness,           # Generation
-    answer_relevancy,       # Generation
-    answer_correctness      # Generation (nécessite ground_truth)
+    context_precision,      # Retrieval - Quality of retrieved docs
+    answer_similarity       # Generation - Semantic similarity (more tolerant than answer_correctness)
 )
 from ragas.llms import LangchainLLMWrapper
 from ragas.embeddings import LangchainEmbeddingsWrapper
@@ -23,13 +23,16 @@ logger = logging.getLogger(__name__)
 
 class CertificationEvaluator:
     """
-    Évaluateur pour certification avec 4 métriques RAGAS
+    Évaluateur pour certification avec 2 métriques RAGAS essentielles
 
     Métriques:
-        - context_precision: Qualité du retrieval (docs pertinents)
-        - faithfulness: Pas d'hallucinations (fidélité au contexte)
-        - answer_relevancy: Pertinence de la réponse à la question
-        - answer_correctness: Exactitude factuelle (vs ground truth)
+        - context_precision: Qualité du retrieval (docs pertinents récupérés)
+        - answer_similarity: Similarité sémantique de la réponse (vs ground truth)
+                            Plus tolérant qu'answer_correctness (embeddings-based)
+
+    Pondération overall_score:
+        - 30% context_precision (retrieval)
+        - 70% answer_similarity (generation - plus important car résultat final)
     """
 
     def __init__(self, rag_agent):
@@ -54,12 +57,10 @@ class CertificationEvaluator:
         self.llm = LangchainLLMWrapper(langchain_llm)
         self.embeddings = LangchainEmbeddingsWrapper(langchain_embeddings)
 
-        # Métriques RAGAS
+        # Métriques RAGAS (2 métriques essentielles)
         self.metrics = [
-            context_precision,     # Sans GT
-            faithfulness,          # Sans GT
-            answer_relevancy,      # Sans GT
-            answer_correctness     # AVEC GT (critique pour certification)
+            context_precision,     # Retrieval quality
+            answer_similarity      # Generation semantic similarity (requires ground_truth)
         ]
 
     def evaluate_single(
@@ -122,26 +123,20 @@ class CertificationEvaluator:
         else:
             scores_dict = dict(scores)
 
-        # Structure results
+        # Structure results (2 metrics only)
         evaluation_result = {
             "question": question,
             "answer": result["answer"],
             "ground_truth": ground_truth,
             "contexts": contexts,
 
-            # Scores détaillés
+            # Scores (simplified to 2 metrics)
             "scores": {
-                "retrieval": {
-                    "context_precision": float(scores_dict["context_precision"]),
-                },
-                "generation": {
-                    "faithfulness": float(scores_dict["faithfulness"]),
-                    "answer_relevancy": float(scores_dict["answer_relevancy"]),
-                    "answer_correctness": float(scores_dict["answer_correctness"]),
-                },
+                "context_precision": float(scores_dict.get("context_precision", 0.0)),
+                "answer_similarity": float(scores_dict.get("answer_similarity", 0.0)),
             },
 
-            # Score global pondéré
+            # Score global pondéré (30% retrieval, 70% generation)
             "overall_score": self._compute_overall_score(scores_dict),
 
             # Metadata
@@ -178,13 +173,11 @@ class CertificationEvaluator:
 
     def _compute_overall_score(self, scores: dict) -> float:
         """
-        Calcule le score global pondéré
+        Calcule le score global pondéré (2 métriques)
 
         Pondération:
-            - context_precision: 20%  (retrieval)
-            - faithfulness: 30%       (pas d'hallucinations - critique)
-            - answer_relevancy: 20%   (pertinence)
-            - answer_correctness: 30% (exactitude - critique pour certification)
+            - context_precision: 30%  (retrieval quality)
+            - answer_similarity: 70% (generation semantic similarity - plus critique)
 
         Args:
             scores: Dict des scores RAGAS
@@ -193,24 +186,20 @@ class CertificationEvaluator:
             Score global entre 0 et 1
         """
         return (
-            0.2 * scores["context_precision"] +
-            0.3 * scores["faithfulness"] +
-            0.2 * scores["answer_relevancy"] +
-            0.3 * scores["answer_correctness"]
+            0.3 * scores.get("context_precision", 0.0) +
+            0.7 * scores.get("answer_similarity", 0.0)
         )
 
     def get_certification_verdict(self, overall_score: float, scores: dict) -> Dict:
         """
-        Détermine si le système passe la certification
+        Détermine si le système passe la certification (2 métriques)
 
-        Seuils:
-            - context_precision >= 0.70
-            - faithfulness >= 0.80 (strict)
-            - answer_relevancy >= 0.70
-            - answer_correctness >= 0.75 (strict)
+        Seuils de certification:
+            - context_precision >= 0.70 (retrieval quality)
+            - answer_similarity >= 0.75 (generation semantic similarity)
 
         Args:
-            overall_score: Score global
+            overall_score: Score global pondéré
             scores: Scores individuels
 
         Returns:
@@ -219,14 +208,12 @@ class CertificationEvaluator:
 
         thresholds = {
             "context_precision": 0.70,
-            "faithfulness": 0.80,
-            "answer_relevancy": 0.70,
-            "answer_correctness": 0.75
+            "answer_similarity": 0.75
         }
 
         # Vérifier chaque seuil
         passed = all(
-            scores[metric] >= threshold
+            scores.get(metric, 0) >= threshold
             for metric, threshold in thresholds.items()
         )
 

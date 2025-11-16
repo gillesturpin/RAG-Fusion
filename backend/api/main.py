@@ -542,6 +542,47 @@ async def query_stream(request: dict):
 
 
 # ========================================
+# CERTIFICATION ENDPOINT
+# ========================================
+
+@app.get("/api/certification")
+async def get_certification_results():
+    """
+    Get the latest certification results
+    Returns the certification JSON report
+    """
+    try:
+        # Path to certification reports
+        cert_dir = Path(__file__).parent.parent / "scripts"
+
+        # Look for the latest certification report
+        cert_file = cert_dir / "certification_report_FINAL_COMPLETE.json"
+
+        if not cert_file.exists():
+            # Fallback to any certification report
+            cert_files = list(cert_dir.glob("certification_report_*.json"))
+            if not cert_files:
+                raise HTTPException(
+                    status_code=404,
+                    detail="No certification report found. Run certification first."
+                )
+            # Get the most recent file
+            cert_file = max(cert_files, key=lambda p: p.stat().st_mtime)
+
+        # Read and return the JSON
+        with open(cert_file, 'r') as f:
+            cert_data = json.load(f)
+
+        return JSONResponse(content=cert_data)
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error loading certification results: {str(e)}"
+        )
+
+
+# ========================================
 # MAIN
 # ========================================
 

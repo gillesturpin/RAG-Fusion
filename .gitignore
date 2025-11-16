@@ -20,6 +20,7 @@ ENV/
 
 # Vector DB
 data/chroma_db/
+chroma_db/
 
 # Frontend
 frontend/node_modules/
