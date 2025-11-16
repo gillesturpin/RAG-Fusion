@@ -1,20 +1,20 @@
-# 🔬 Agentic RAG
+# Agentic RAG
 
 **Pure LangChain/LangGraph RAG Agent** - Advanced retrieval-augmented generation system with RAG Fusion and intelligent routing.
 
 Implementation based on [official LangChain tutorial](https://python.langchain.com/docs/tutorials/rag_agent/).
 
-## ✨ Features
+## Features
 
-- 🤖 **Intelligent Routing** - LLM autonomously decides when to retrieve documents
-- ⚡ **RAG Fusion** - Multi-query retrieval + Reciprocal Rank Fusion (RRF) for better reranking
-- 📊 **Stateless Mode** - Optimized for independent questions and RAGAS evaluation (no conversation memory)
-- ⚡ **Streaming Responses** - Real-time answer generation via Server-Sent Events
-- 📄 **Document Upload** - Supports PDF, TXT, MD, DOCX, IPYNB formats
-- 🎯 **Optimized Retrieval** - k=8 documents with RAG Fusion
-- 📈 **RAGAS Evaluation** - Automated quality assessment (Score: 87.4% - Grade A)
+- **Intelligent Routing** - LLM autonomously decides when to retrieve documents
+- **RAG Fusion** - Multi-query retrieval + Reciprocal Rank Fusion (RRF) for better reranking
+- **Stateless Mode** - Optimized for independent questions and RAGAS evaluation (no conversation memory)
+- **Streaming Responses** - Real-time answer generation via Server-Sent Events
+- **Document Upload** - Supports PDF, TXT, MD, DOCX, IPYNB formats
+- **Optimized Retrieval** - k=8 documents with RAG Fusion
+- **RAGAS Evaluation** - Automated quality assessment (Score: 87.4% - Grade A)
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 - **Backend**: FastAPI + LangChain + LangGraph
 - **Frontend**: React 19 + Vite
@@ -25,7 +25,7 @@ Implementation based on [official LangChain tutorial](https://python.langchain.c
 - **Mode**: Stateless (optimized for independent questions)
 - **Evaluation**: RAGAS framework
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
@@ -77,7 +77,7 @@ npm run dev
 
 Frontend will be at http://localhost:5173 with hot reload enabled.
 
-## 📋 Available Scripts
+## Available Scripts
 
 - `./start.sh` - Start all services with Docker
 - `./start-dev.sh` - Backend in Docker + Frontend in dev mode
@@ -86,7 +86,7 @@ Frontend will be at http://localhost:5173 with hot reload enabled.
 - `make test` - Run evaluation tests
 - `make clean` - Clean up containers and volumes
 
-## 🏗️ Architecture
+## Architecture
 
 ```
 User Query
@@ -125,7 +125,7 @@ User Query
 - **Stateless Mode**: Each question processed independently (optimized for evaluation)
 - **Streaming**: Real-time Server-Sent Events for better UX
 
-## 📡 API Endpoints
+## API Endpoints
 
 - `POST /api/query` - Standard query (stateless)
 - `POST /api/rag_agent` - RAG agent endpoint
@@ -137,7 +137,7 @@ User Query
 - `GET /api/evaluation` - Get evaluation results
 - `GET /health` - Health check
 
-## 📊 Evaluation
+## Evaluation
 
 The system includes automated evaluation using the RAGAS framework:
 
@@ -155,12 +155,12 @@ Metrics evaluated:
 
 Results are saved in `backend/scripts/evaluation_report_FINAL.json`.
 
-## 🐳 Docker Optimizations
+## Docker Optimizations
 
 This setup uses **CPU-only PyTorch** for optimal build times:
-- ⚡ Build time: **3-5 minutes** (vs 60+ with CUDA)
-- 💾 Image size: **~586 MB** backend (vs ~2.5 GB with GPU)
-- 🚀 Works on any machine (no GPU required)
+- Build time: **3-5 minutes** (vs 60+ with CUDA)
+- Image size: **~586 MB** backend (vs ~2.5 GB with GPU)
+- Works on any machine (no GPU required)
 
 The optimization is configured in `requirements.txt`:
 ```python
@@ -168,19 +168,19 @@ The optimization is configured in `requirements.txt`:
 torch==2.5.1+cpu
 ```
 
-## 📚 Documentation
+## Documentation
 
 - [ARCHITECTURE.md](docs/ARCHITECTURE.md) - Detailed system architecture
 - [DOCUMENTATION_TECHNIQUE.md](docs/DOCUMENTATION_TECHNIQUE.md) - Technical implementation details
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
-## 📄 License
+## License
 
 MIT License
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 Built following the [LangChain RAG Agent tutorial](https://python.langchain.com/docs/tutorials/rag_agent/) with additional enhancements for production use.
