@@ -1,6 +1,6 @@
 #!/bin/bash
 # Docker startup script for Agentic RAG
-# Bootcamp Evaluation Project
+# Agentic RAG Evaluation Project
 
 echo "Docker Starting Agentic RAG with Docker"
 echo "===================================="

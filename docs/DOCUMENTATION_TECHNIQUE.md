@@ -9,7 +9,7 @@
 2. [Structure du Projet](#structure-du-projet)
 3. [Implémentation RAG Agent](#implémentation-rag-agent)
 4. [API REST](#api-rest)
-5. [Mémoire Conversationnelle](#mémoire-conversationnelle)
+5. [Mode Stateless (Configuration Actuelle)](#mode-stateless-configuration-actuelle)
 6. [Streaming](#streaming)
 7. [Upload de Documents](#upload-de-documents)
 8. [Tests](#tests)
@@ -27,7 +27,7 @@
 - **Anthropic** Claude Sonnet 4.5 (`claude-sonnet-4-5-20250929`)
 - **ChromaDB** - Vector store (local persistence)
 - **HuggingFace** - Embeddings (`sentence-transformers/all-MiniLM-L6-v2`)
-- **Stateless mode** - Conversation memory (LangGraph checkpointer)
+- **Stateless mode** - No conversation memory (checkpointer=None by default)
 
 ### Frontend
 - **React** 19
@@ -54,7 +54,7 @@ agentic-rag/
 │   │
 │   └── rags/
 │       ├── __init__.py           # Package exports
-│       └── rag_agent.py         # RAG Agent avec mémoire (212 lignes)
+│       └── rag_agent.py         # RAG Agent avec RAG Fusion (327 lignes)
 │
 ├── frontend/
 │   ├── src/
@@ -84,55 +84,41 @@ agentic-rag/
 
 ### Fichier : `backend/rags/rag_agent.py`
 
-Le RAG Agent suit exactement le tutoriel officiel LangChain avec ajout de la mémoire conversationnelle.
+Le RAG Agent suit le tutoriel officiel LangChain avec deux améliorations majeures :
+1. **RAG Fusion** : Multi-query retrieval avec RRF reranking pour améliorer la qualité de récupération
+2. **Mode stateless** : Pas de mémoire conversationnelle par défaut (optimisé pour évaluation)
 
 ### 1. Initialisation
 
+Voir le code réel dans `backend/rags/rag_agent.py` (lignes 75-131).
+
+**Signature** :
 ```python
-class RAGAgent:
-    def __init__(self, vectorstore, checkpointer=None):
-        """
-        Args:
-            vectorstore: ChromaDB vectorstore existant
-            checkpointer: Stateless mode pour la mémoire (optionnel)
-        """
-        self.vectorstore = vectorstore
-
-        # Mémoire conversationnelle
-        self.checkpointer = checkpointer or Stateless mode()
-
-        # LLM
-        self.model = init_chat_model(
-            "claude-sonnet-4-5-20250929",
-            model_provider="anthropic"
-        )
-
-        # Créer le tool de retrieval
-        @tool
-        def retrieve(query: str):
-            """Retrieve information related to a query."""
-            retrieved_docs = self.vectorstore.similarity_search(query, k=8)
-            serialized = "\n\n".join(
-                f"Source: {doc.metadata}\nContent: {doc.page_content}"
-                for doc in retrieved_docs
-            )
-            return serialized
-
-        self.tools = [retrieve]
-
-        # Bind tools au model
-        self.model_with_tools = self.model.bind_tools(self.tools)
-
-        # Build le graph LangGraph
-        self.graph = self._build_graph()
+def __init__(self, vectorstore, checkpointer=None, use_rag_fusion=True, temperature=1.0, k_documents=8)
 ```
 
+**Configuration par défaut** :
+- **checkpointer=None** : Mode stateless, aucune mémoire entre questions
+- **use_rag_fusion=True** : RAG Fusion activé (multi-query + RRF)
+- **temperature=1.0** : Température maximale pour génération créative
+- **k_documents=8** : Nombre final de documents retournés après fusion
+
+**Fonctionnement RAG Fusion** :
+1. Génère 4 variations de la question (1 originale + 3 reformulations)
+2. Récupère 4 documents pour chaque variation (total : 16 documents)
+3. Applique RRF (Reciprocal Rank Fusion) pour reranker
+4. Retourne les top k=8 documents avec meilleurs scores
+
+**LLM** :
+- **Modèle** : Claude Sonnet 4.5 (`claude-sonnet-4-5-20250929`)
+- **Temperature** : 1.0 (configurable)
+- **Tools** : Fonction `retrieve` avec RAG Fusion
+
 **Points clés** :
-- **Vectorstore** : Passé en paramètre (créé au startup de l'API)
-- **Checkpointer** : `Stateless mode` pour persister les conversations
-- **Tool** : Fonction `retrieve` wrappée avec `@tool`
-- **k=8** : Récupère 4 documents max
-- **Graph** : Compilé avec le checkpointer
+- **Vectorstore** : ChromaDB passé en paramètre (créé au startup)
+- **Checkpointer** : None par défaut = AUCUNE mémoire conversationnelle
+- **Tool** : Fonction `retrieve` avec logique RAG Fusion intégrée
+- **Graph** : Compilé sans checkpointer (stateless)
 
 ### 2. Build du Graph LangGraph
 
@@ -170,8 +156,11 @@ def _build_graph(self):
     # Loop: tools → agent
     workflow.add_edge("tools", "agent")
 
-    # Compile avec memory
-    return workflow.compile(checkpointer=self.checkpointer)
+    # Compile (stateless si checkpointer=None)
+    if self.checkpointer:
+        return workflow.compile(checkpointer=self.checkpointer)
+    else:
+        return workflow.compile()  # Stateless par défaut
 ```
 
 **Flow** :
@@ -214,46 +203,38 @@ def trim_messages(messages):
     return [messages[0]] + messages[-9:]
 ```
 
-### 4. Invoke avec Thread ID
+### 4. Invoke (Stateless par défaut)
+
+Voir le code réel dans `backend/rags/rag_agent.py` (lignes 254-288).
+
+**Signature** :
+```python
+def invoke(self, question: str, thread_id: str = None) -> dict
+```
+
+**IMPORTANT** : En mode stateless (checkpointer=None), le paramètre `thread_id` est **IGNORÉ**.
 
 ```python
-def invoke(self, question: str, thread_id: str = None) -> dict:
-    """
-    Exécute le RAG Agent avec support mémoire
+# Config pour mémoire (SEULEMENT si checkpointer existe)
+config = {}
+if thread_id and self.checkpointer:  # <- Note le AND
+    config = {"configurable": {"thread_id": thread_id}}
+```
 
-    Args:
-        question: Question de l'utilisateur
-        thread_id: ID du thread pour mémoire conversationnelle
+**Comportement actuel (checkpointer=None)** :
+- Chaque question est **indépendante**
+- Aucune mémoire entre les appels
+- thread_id est retourné mais n'a aucun effet
+- Optimisé pour évaluation RAGAS (pas de contamination entre questions)
 
-    Returns:
-        dict avec answer, messages, used_retrieval, thread_id
-    """
-    # Config pour mémoire
-    config = {}
-    if thread_id:
-        config = {"configurable": {"thread_id": thread_id}}
-
-    # Invoke graph
-    from langchain_core.messages import HumanMessage
-    result = self.graph.invoke(
-        {"messages": [HumanMessage(content=question)]},
-        config
-    )
-
-    # Extraire réponse
-    last_message = result["messages"][-1]
-
-    # Détecter si retrieval utilisé
-    used_retrieval = any(
-        msg.type == "tool" for msg in result["messages"]
-    )
-
-    return {
-        "answer": last_message.content,
-        "messages": result["messages"],
-        "used_retrieval": used_retrieval,
-        "thread_id": thread_id
-    }
+**Retour** :
+```python
+{
+    "answer": str,           # Réponse générée
+    "messages": list,        # Liste des messages (HumanMessage, AIMessage, ToolMessage)
+    "used_retrieval": bool,  # True si le tool retrieve a été appelé
+    "thread_id": str         # Retourné tel quel (tracking frontend uniquement)
+}
 ```
 
 ---
@@ -282,13 +263,11 @@ async def startup_event():
         embedding_function=embeddings
     )
 
-    # Create checkpointer
-    checkpointer = Stateless mode()
+    # Initialize RAG agent (STATELESS mode)
+    rag_agent = RAGAgent(vectorstore, checkpointer=None)
+    # Par défaut : use_rag_fusion=True, temperature=1.0, k_documents=8
 
-    # Initialize RAG agent
-    rag_agent = RAGAgent(vectorstore, checkpointer=checkpointer)
-
-    print(" RAG Agent initialized with memory support")
+    print("✓ RAG Agent initialized in STATELESS mode with RAG Fusion")
 ```
 
 ### Endpoints Principaux
@@ -300,14 +279,14 @@ Endpoint natif pour le RAG Agent.
 ```python
 @app.post("/api/rag_agent", response_model=AgentResponse)
 async def query_rag_agent(request: QueryRequest):
-    """Query the RAG agent with optional memory support"""
+    """Query the RAG agent (STATELESS - thread_id ignored)"""
     start_time = time.time()
 
     try:
-        # Generate thread_id si absent
+        # Generate thread_id si absent (pour tracking frontend uniquement)
         thread_id = request.thread_id or str(uuid.uuid4())
 
-        # Invoke
+        # Invoke (thread_id IGNORÉ car checkpointer=None)
         result = rag_agent.invoke(request.question, thread_id=thread_id)
         latency = time.time() - start_time
 
@@ -347,16 +326,17 @@ Endpoint adapter pour compatibilité frontend.
 ```python
 @app.post("/api/query")
 async def query_adapter(request: dict):
-    """Adapter pour frontend original"""
+    """Adapter pour frontend original (STATELESS)"""
     question = request.get("question", "")
     session_id = request.get("session_id", str(uuid.uuid4()))
 
-    # Mapping session_id → thread_id
+    # Mapping session_id → thread_id (INUTILE car checkpointer=None)
+    # Gardé uniquement pour compatibilité frontend
     if session_id not in session_threads:
         session_threads[session_id] = f"thread-{uuid.uuid4()}"
     thread_id = session_threads[session_id]
 
-    # Invoke agent
+    # Invoke agent (thread_id IGNORÉ)
     result = rag_agent.invoke(question, thread_id=thread_id)
 
     return {
@@ -365,11 +345,13 @@ async def query_adapter(request: dict):
         "latency": ...,
         "confidence": 0.90,  # Hardcodé
         "faithfulness": 0.92,  # Hardcodé
-        "thread_id": thread_id
+        "thread_id": thread_id  # Retourné mais sans effet
     }
 ```
 
-** Note** : `confidence` et `faithfulness` sont **hardcodés** ici.
+**Notes** :
+- `confidence` et `faithfulness` sont **hardcodés**
+- Le mapping session_id → thread_id est **inutile** (checkpointer=None) mais gardé pour compatibilité
 
 #### 3. `POST /api/upload`
 
@@ -420,44 +402,56 @@ async def upload_documents(files: List[UploadFile] = File(...)):
 
 ---
 
-## Mémoire Conversationnelle
+## Mode Stateless (Configuration Actuelle)
 
-### Stateless mode
+### Pas de Mémoire Conversationnelle
 
-LangGraph utilise un **checkpointer** pour persister l'état du graph entre les appels.
+Le système est configuré en **mode stateless** par défaut (`checkpointer=None`).
 
-**Fonctionnement** :
-- Chaque `thread_id` a son propre état isolé
-- L'historique des messages est sauvegardé
+**Implications** :
+- ❌ **Aucune mémoire** entre les questions
+- ❌ Le paramètre `thread_id` est **accepté mais IGNORÉ**
+- ✅ Chaque question est **totalement indépendante**
+- ✅ Optimisé pour **évaluation RAGAS** (pas de contamination entre questions)
+- ✅ Pas de stockage d'état en mémoire
+
+**Exemple de comportement actuel** :
+
+```python
+# Question 1
+agent.invoke("My name is Alice", thread_id="thread-1")
+# → Réponse générée
+
+# Question 2 (MÊME thread_id)
+agent.invoke("What is my name?", thread_id="thread-1")
+# → "I don't have information about your name" ❌ Pas de mémoire !
+
+# Le thread_id ne fait RIEN car checkpointer=None
+```
+
+### Activer la Mémoire Conversationnelle (Non implémenté actuellement)
+
+Pour activer la mémoire, il faudrait :
+
+1. **Changer le code dans `backend/api/main.py`** :
+```python
+from langgraph.checkpoint.memory import MemorySaver
+
+# Ligne 77 (actuellement : checkpointer=None)
+checkpointer = MemorySaver()  # Au lieu de None
+rag_agent = RAGAgent(vectorstore, checkpointer=checkpointer)
+```
+
+2. **Fonctionnement avec mémoire** :
+- Chaque `thread_id` aurait son propre état isolé
+- L'historique des messages serait sauvegardé
 - Pas de limite de durée (reste en RAM)
 
-### Utilisation
+3. **Pour persistance en production** :
+- Utiliser `SqliteSaver` ou `PostgresSaver` au lieu de `MemorySaver`
+- Voir [LangGraph Checkpointers](https://langchain-ai.github.io/langgraph/reference/checkpoints/)
 
-```python
-# Conversation 1 (thread-1)
-agent.invoke("My name is Alice", thread_id="thread-1")
-agent.invoke("What is my name?", thread_id="thread-1")
-# → "Your name is Alice" 
-
-# Conversation 2 (thread-2)
-agent.invoke("What is my name?", thread_id="thread-2")
-# → "I don't know your name" 
-```
-
-### Gestion des Sessions (API)
-
-```python
-# Store thread_id par session_id
-session_threads = {}
-
-# Mapping
-if session_id not in session_threads:
-    session_threads[session_id] = f"thread-{uuid.uuid4()}"
-
-thread_id = session_threads[session_id]
-```
-
-**Note** : En production, utiliser Redis ou PostgreSQL checkpointer pour persistance.
+**Note** : La mémoire n'est PAS activée pour optimiser l'évaluation RAGAS.
 
 ---
 
@@ -550,7 +544,7 @@ vectorstore.add_documents(chunks)
 
 ## Tests
 
-### Test Mémoire
+### Test Mode Stateless
 
 **Fichier** : `test_memory.py`
 
@@ -558,10 +552,11 @@ vectorstore.add_documents(chunks)
 python test_memory.py
 ```
 
-**Tests** :
--  Thread différent → pas de mémoire
--  Même thread → mémoire OK
--  Trimming → garde 10 messages max
+**Tests actuels (mode stateless)** :
+- ❌ Threads différents → pas de mémoire (normal)
+- ❌ Même thread → **PAS de mémoire** (car checkpointer=None)
+- ✅ Trimming → garde 10 messages max
+- ✅ RAG Fusion → génère 4 queries, récupère 16 docs, retourne top 8
 
 ### Test API Manuel
 
@@ -569,12 +564,12 @@ python test_memory.py
 # Lancer serveur
 cd backend/api && python main.py
 
-# Test sans mémoire
+# Test basique (stateless)
 curl -X POST http://localhost:8000/api/rag_agent \
   -H "Content-Type: application/json" \
   -d '{"question": "What is RAG?"}'
 
-# Test avec mémoire
+# Test avec thread_id (IGNORÉ car checkpointer=None)
 curl -X POST http://localhost:8000/api/rag_agent \
   -H "Content-Type: application/json" \
   -d '{"question": "My name is Bob", "thread_id": "test-1"}'
@@ -582,8 +577,11 @@ curl -X POST http://localhost:8000/api/rag_agent \
 curl -X POST http://localhost:8000/api/rag_agent \
   -H "Content-Type: application/json" \
   -d '{"question": "What is my name?", "thread_id": "test-1"}'
-# → "Your name is Bob"
+# → "I don't have information about your name" ❌ PAS de mémoire !
+# Le thread_id est accepté mais IGNORÉ (checkpointer=None)
 ```
+
+**Note** : Pour tester la mémoire, il faudrait d'abord modifier `backend/api/main.py` ligne 77 pour activer un checkpointer.
 
 ---
 
@@ -704,21 +702,22 @@ app.add_middleware(
 
 ## Roadmap
 
-### Implémenté
-- RAG Agent avec tool calling
-- RAG Fusion (multi-query + RRF reranking)
-- Mode stateless (optimisé pour évaluation)
-- Streaming SSE
-- Upload documents multi-formats (PDF/TXT/MD/DOCX/IPYNB)
-- Message trimming
-- API REST complète
-- Évaluation RAGAS (Score 87.4% - Grade A)
+### Implémenté ✅
+- **RAG Agent** avec tool calling (LangGraph)
+- **RAG Fusion** : Multi-query retrieval + RRF reranking (4 queries → 16 docs → top 8)
+- **Mode stateless** : Pas de mémoire conversationnelle (optimisé pour évaluation)
+- **Claude Sonnet 4.5** : Modèle de dernière génération
+- **Temperature 1.0** : Génération créative maximale
+- **Streaming SSE** : Réponses en temps réel
+- **Upload multi-formats** : PDF/TXT/MD/DOCX/IPYNB
+- **Message trimming** : Garde 10 derniers messages
+- **API REST complète** : FastAPI avec CORS
+- **Évaluation RAGAS** : Score 87.4% - Grade A
 
-### À Venir
-- Mode conversationnel avec mémoire (checkpointer)
-- PostgreSQL checkpointer (persistance DB)
-- Hybrid search (dense + sparse)
-- Citation tracking
-- Token usage tracking réel
-- Rate limiting
-- Tests automatisés complets
+### À Venir 🔜
+- **Mode conversationnel** avec mémoire (MemorySaver/PostgresSaver)
+- **Hybrid search** : Dense + sparse (BM25)
+- **Citation tracking** : Sources précises
+- **Token usage tracking** : Coûts réels
+- **Rate limiting** : Protection API
+- **Tests automatisés** : Coverage complet

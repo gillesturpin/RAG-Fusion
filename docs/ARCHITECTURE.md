@@ -96,15 +96,15 @@ Points clés de l'implémentation :
 ### Nodes du Graph
 
 #### 1. **agent** (LLM Router)
-- Reçoit la question + historique (mémoire)
+- Reçoit la question (mode stateless - pas d'historique entre questions)
 - Décide : retrieval nécessaire ou non ?
 - Retourne : réponse directe OU appel au tool `retrieve`
 
 #### 2. **tools** (RAG Fusion Retriever)
-- Génère 3 variations de la question (multi-query)
-- Récupère documents pour chaque variation
-- Applique RRF (Reciprocal Rank Fusion) pour reranker
-- Retourne top k=8 documents avec métadonnées au LLM
+- Génère 4 requêtes au total (1 question originale + 3 variations)
+- Récupère 4 documents pour chaque requête (16 documents au total)
+- Applique RRF (Reciprocal Rank Fusion) pour reranker les 16 documents
+- Retourne top k=8 documents finaux avec métadonnées au LLM
 
 #### 3. **Conditional Edge**
 - Si `tool_calls` présent → va vers `tools`
@@ -128,11 +128,14 @@ agent.invoke("What is my name?")
 
 ### Message Trimming
 
-Pour éviter de dépasser la limite de contexte :
+Pour éviter de dépasser la limite de contexte (utilisé pour éviter overflow, pas pour la mémoire conversationnelle) :
 
 ```python
 def trim_messages(messages):
-    """Keep only the last 10 messages to fit context window."""
+    """Keep only the last 10 messages to fit context window.
+    NOTE: This is for context length management, not conversation memory.
+    The system is stateless (checkpointer=None) - no memory between questions.
+    """
     if len(messages) <= 10:
         return messages
     # Keep first (system) and last 9 messages

@@ -103,12 +103,16 @@ class RAGAgent:
 
             if self.use_rag_fusion:
                 # RAG Fusion: Multi-query + RRF
+                # Generates 4 total queries (1 original + 3 rewrites)
                 query_variations = self._generate_query_variations(query)
                 all_results = []
                 for variation in query_variations:
+                    # Retrieve k=4 docs per query variation (4 queries × 4 docs = 16 total docs)
                     docs = self.vectorstore.similarity_search(variation, k=4)
                     all_results.append(docs)
+                # Apply RRF reranking to all 16 documents
                 fused_docs = self._reciprocal_rank_fusion(all_results, k=60)
+                # Take top k_documents (default=8) from reranked results
                 retrieved_docs = fused_docs[:self.k_documents]
             else:
                 # Simple retrieval

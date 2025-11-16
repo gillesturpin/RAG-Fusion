@@ -28,7 +28,7 @@ from langchain_community.vectorstores import Chroma
 
 app = FastAPI(
     title="Agentic RAG API",
-    description="Optimized RAG Agent - Pure LangChain/LangGraph implementation with k=4 retrieval",
+    description="Optimized RAG Agent - Pure LangChain/LangGraph implementation with RAG Fusion (k=8 final documents)",
     version="2.0.0"
 )
 
@@ -113,7 +113,7 @@ async def root():
     return {
         "status": "online",
         "version": "2.0.0",
-        "mode": "Optimized RAG (k=4, improved prompt)",
+        "mode": "Optimized RAG with RAG Fusion (k=8 final docs, temperature=1.0, stateless)",
         "agent": "rag_agent"
     }
 
@@ -175,7 +175,7 @@ async def query_adapter(request: dict):
             "escalated": False,
             "confidence": 0.90,
             "faithfulness": 0.92,
-            "num_documents": 4
+            "num_documents": 8  # RAG Fusion final document count
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

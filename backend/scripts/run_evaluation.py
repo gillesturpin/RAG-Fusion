@@ -136,7 +136,7 @@ def run_evaluation(
             result = evaluator.evaluate_single(
                 question=item["question"],
                 ground_truth=item["ground_truth"],
-                thread_id=f"cert-eval-{i}"
+                thread_id=f"eval-{i}"  # Stateless mode - thread_id ignored
             )
 
             # Get verdict (2 metrics)
