@@ -84,63 +84,14 @@ User Question
 
 **Fichier** : `backend/rags/rag_agent.py`
 
-```python
-class RAGAgent:
-    def __init__(self, vectorstore, checkpointer=None):
-        # Use Stateless mode for conversation memory
-        self.checkpointer = checkpointer or Stateless mode()
+**Note**: Pour le code source complet et à jour, consultez directement le fichier `backend/rags/rag_agent.py`.
 
-        # Create retrieve tool
-        @tool
-        def retrieve(query: str):
-            """Retrieve information related to a query."""
-            retrieved_docs = self.vectorstore.similarity_search(query, k=8)
-            # Format documents with metadata
-            serialized = "\n\n".join(
-                f"Source: {doc.metadata}\nContent: {doc.page_content}"
-                for doc in retrieved_docs
-            )
-            return serialized
-
-        # Bind tools to model
-        self.model_with_tools = self.model.bind_tools([retrieve])
-
-        # Build LangGraph workflow
-        self.graph = self._build_graph()
-
-    def _build_graph(self):
-        workflow = StateGraph(MessagesState)
-
-        # Add nodes
-        workflow.add_node("agent", self._call_model)
-        workflow.add_node("tools", ToolNode([retrieve]))
-
-        # Conditional routing
-        def should_continue(state):
-            last_message = state["messages"][-1]
-            if hasattr(last_message, 'tool_calls') and last_message.tool_calls:
-                return "tools"  # LLM wants to retrieve
-            return END  # LLM answers directly
-
-        workflow.add_conditional_edges("agent", should_continue)
-        workflow.add_edge("tools", "agent")  # Loop back after retrieval
-
-        # Compile with memory
-        return workflow.compile(checkpointer=self.checkpointer)
-
-    def invoke(self, question: str, thread_id: str = None):
-        config = {"configurable": {"thread_id": thread_id}} if thread_id else {}
-        result = self.graph.invoke(
-            {"messages": [HumanMessage(content=question)]},
-            config
-        )
-        return {
-            "answer": result["messages"][-1].content,
-            "messages": result["messages"],
-            "used_retrieval": any(msg.type == "tool" for msg in result["messages"]),
-            "thread_id": thread_id
-        }
-```
+Points clés de l'implémentation :
+- **Stateless mode**: `checkpointer=None` par défaut, pas de mémoire conversationnelle
+- **RAG Fusion**: Multi-query retrieval + RRF reranking pour améliorer la pertinence
+- **k=8 documents**: Optimisé pour maximiser le score RAGAS
+- **Temperature=1.0**: Diversité des réponses
+- **LangGraph workflow**: StateGraph avec conditional routing (agent → tools → agent)
 
 ### Nodes du Graph
 
