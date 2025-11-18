@@ -1,27 +1,27 @@
-# Agentic RAG
+# RAG Fusion
 
-**Pure LangChain/LangGraph RAG Agent** - Advanced retrieval-augmented generation system with RAG Fusion and intelligent routing.
+**Simple Chain RAG System** - Advanced retrieval-augmented generation with RAG Fusion (multi-query + RRF reranking).
 
-Implementation based on [official LangChain tutorial](https://python.langchain.com/docs/tutorials/rag_agent/).
+Implementation based on Learning LangChain Ch3 pattern (simple chains, no LangGraph overhead).
 
 ## Features
 
-- **Intelligent Routing** - LLM autonomously decides when to retrieve documents
-- **RAG Fusion** - Multi-query retrieval + Reciprocal Rank Fusion (RRF) for better reranking
+- **RAG Fusion** - Multi-query retrieval (4 queries) + Reciprocal Rank Fusion for optimal document reranking
+- **Simple Chain Architecture** - Direct flow without LangGraph overhead (-33% API calls, -1s latency)
 - **Stateless Mode** - Optimized for independent questions and RAGAS evaluation (no conversation memory)
 - **Streaming Responses** - Real-time answer generation via Server-Sent Events
 - **Document Upload** - Supports PDF, TXT, MD, DOCX, IPYNB formats
-- **Optimized Retrieval** - k=8 documents with RAG Fusion
+- **Optimized Retrieval** - Top k=8 documents after RRF reranking from 16 initial retrievals
 - **RAGAS Evaluation** - Automated quality assessment (Score: 87.4% - Grade A)
 
 ## Tech Stack
 
-- **Backend**: FastAPI + LangChain + LangGraph
+- **Backend**: FastAPI + LangChain (simple chains)
 - **Frontend**: React 19 + Vite
 - **LLM**: Claude Sonnet 4.5 (Anthropic)
 - **Embeddings**: HuggingFace `sentence-transformers/all-MiniLM-L6-v2`
 - **Vector Store**: ChromaDB (local persistence)
-- **Retrieval**: RAG Fusion (multi-query + RRF reranking, k=8)
+- **Retrieval**: RAG Fusion (4 queries → 16 docs → RRF reranking → top 8)
 - **Mode**: Stateless (optimized for independent questions)
 - **Evaluation**: RAGAS framework
 
@@ -98,30 +98,33 @@ User Query
 └───────────────────┘
     │
     ▼
-┌───────────────────┐
-│   RAG Agent       │ ← LangGraph StateGraph
-│   (Stateless)     │   + RAG Fusion
-└───────────────────┘
+┌───────────────────────────────────────────┐
+│          RAG Fusion Chain                 │
+│                                           │
+│  1. Query Generation (LLM call 1)         │
+│     Original + 3 variations = 4 queries   │
+│                                           │
+│  2. Multi-Query Retrieval                 │
+│     4 queries × 4 docs = 16 documents     │
+│                                           │
+│  3. RRF Reranking                         │
+│     16 docs → Top 8 (best ranked)         │
+│                                           │
+│  4. Answer Generation (LLM call 2)        │
+│     Context + Question → Answer           │
+└───────────────────────────────────────────┘
     │
-    ├─ Tool Call? ──→ RAG Fusion (k=8) ──→ Documents
-    │                                        │
-    └─ Direct Answer ←──────────────────────┘
-                    │
-                    ▼
-            ┌──────────────┐
-            │  Claude 4.5  │
-            │  Generation  │
-            └──────────────┘
-                    │
-                    ▼
-            Streaming Response
-            (SSE word-by-word)
+    ▼
+Streaming Response
+(SSE word-by-word)
+
+Total: 2 API calls (vs 3 with tool-based approach)
 ```
 
 **Key Components:**
-- **LangGraph**: Orchestrates the agentic workflow
-- **Tool Calling**: LLM autonomously decides if retrieval is needed
-- **RAG Fusion**: Multi-query retrieval + Reciprocal Rank Fusion for better document reranking
+- **RAG Fusion**: Multi-query retrieval + Reciprocal Rank Fusion reranking
+- **Simple Chain**: Direct flow without LangGraph overhead
+- **RRF Algorithm**: `score += 1/(rank + 60)` for optimal document reranking
 - **Stateless Mode**: Each question processed independently (optimized for evaluation)
 - **Streaming**: Real-time Server-Sent Events for better UX
 

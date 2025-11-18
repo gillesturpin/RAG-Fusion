@@ -21,15 +21,15 @@ load_dotenv()
 import sys
 sys.path.append(str(Path(__file__).parent.parent))
 
-from rags.rag_agent import RAGAgent
+from rags.rag_fusion import RAGFusion
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Chroma
 
 
 app = FastAPI(
-    title="Agentic RAG API",
-    description="Optimized RAG Agent - Pure LangChain/LangGraph implementation with RAG Fusion (k=8 final documents)",
-    version="2.0.0"
+    title="RAG Fusion API",
+    description="Optimized RAG - Simple chain implementation with RAG Fusion (4 queries + RRF reranking → k=8 final documents)",
+    version="2.1.0"
 )
 
 app.add_middleware(
@@ -74,7 +74,7 @@ async def startup_event():
         embedding_function=embeddings
     )
 
-    rag_agent = RAGAgent(vectorstore, checkpointer=None)
+    rag_agent = RAGFusion(vectorstore, use_rag_fusion=True)
 
     global uploaded_documents
     try:

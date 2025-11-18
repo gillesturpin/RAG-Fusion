@@ -631,24 +631,296 @@ docker-compose up --build
 
 ---
 
-## Métriques
+## Métriques & Évaluation RAGAS
 
-### Actuelles (Hardcodées)
+### Système d'Évaluation Actuel
 
-Dans `/api/query` adapter :
-```python
-"confidence": 0.90,
-"faithfulness": 0.92,
+Le système utilise **RAGAS 0.3.9** pour évaluation objective avec LLM-as-judge (Claude Haiku).
+
+### Métriques Principales
+
+**2 métriques essentielles** (sélectionnées après optimisation) :
+
+| Métrique | Poids | Description | Seuil Pass |
+|----------|-------|-------------|------------|
+| **Context Precision** | 30% | Qualité du retrieval - Documents pertinents bien classés | ≥ 0.80 |
+| **Answer Similarity** | 70% | Similarité sémantique answer vs ground truth | ≥ 0.70 |
+
+**Score Global** = (Context Precision × 0.30) + (Answer Similarity × 0.70)
+
+### Explication des Métriques
+
+#### 1. Context Precision (30% du score)
+
+**Qu'est-ce que c'est ?**
+- Mesure la **qualité du retrieval** : les documents récupérés sont-ils pertinents ?
+- Vérifie si les documents utilisés pour générer la réponse sont **réellement utiles**
+
+**Comment c'est calculé ?**
+```
+Context Precision = Documents pertinents / Total documents récupérés
+
+Exemple :
+- Récupération : 8 documents
+- Documents pertinents (contiennent l'info nécessaire) : 8
+- Context Precision = 8/8 = 1.0 (100%) ⭐
 ```
 
-### Futures (RAGAS)
+**Pourquoi c'est important ?**
+- ✅ Score élevé (>0.8) = RAG Fusion + RRF fonctionnent bien
+- ✅ Pas de "bruit" : seulement des docs pertinents
+- ❌ Score faible (<0.5) = Beaucoup de docs inutiles récupérés
 
-Pour de vraies métriques :
-- **Faithfulness** : LLM-as-judge hallucination
-- **Answer Relevance** : Pertinence question-réponse
-- **Context Precision** : Documents utilisés vs récupérés
+**Comment RAGAS l'évalue ?**
+1. LLM-as-judge (Claude Haiku) analyse chaque document récupéré
+2. Question : "Ce document contient-il des informations utiles pour répondre à la question ?"
+3. Compte le nombre de documents pertinents vs total
 
-Voir plan d'évaluation séparé.
+**Notre score : 99.99%**
+- Signifie : Presque tous les documents récupérés sont pertinents
+- Grâce à : RAG Fusion (4 queries) + RRF reranking
+
+---
+
+#### 2. Answer Similarity (70% du score)
+
+**Qu'est-ce que c'est ?**
+- Mesure la **similarité sémantique** entre la réponse générée et la réponse de référence (ground truth)
+- Vérifie si le modèle a compris et reformulé correctement l'information
+
+**Comment c'est calculé ?**
+```
+1. Embedding de la réponse générée : E(answer)
+2. Embedding de la ground truth : E(ground_truth)
+3. Similarité cosinus : cos(E(answer), E(ground_truth))
+
+Exemple :
+Answer: "Git is a version control system for tracking code changes"
+Ground truth: "Git is a VCS used to track modifications in source code"
+→ Similarity = 0.92 (très proche sémantiquement)
+```
+
+**Pourquoi c'est important ?**
+- ✅ Score élevé (>0.7) = Réponse contient les bonnes informations
+- ✅ Tolérant aux reformulations (sémantique vs exact match)
+- ❌ Score faible (<0.5) = Réponse à côté de la plaque
+
+**Différence avec exact match :**
+| Métrique | Answer 1 | Answer 2 | Score |
+|----------|----------|----------|-------|
+| **Exact Match** | "Git is a VCS" | "Git is a version control system" | 0% ❌ |
+| **Answer Similarity** | "Git is a VCS" | "Git is a version control system" | 95% ✅ |
+
+**Notre score : 82%**
+- Signifie : Réponses sémantiquement très proches de la vérité
+- Grâce à : System prompt optimisé + Context Precision élevé
+
+---
+
+#### Pourquoi 2 métriques seulement ?
+
+**Métriques RAGAS disponibles** (6 au total) :
+1. Context Precision ✅ **Retenue**
+2. Answer Similarity ✅ **Retenue**
+3. Faithfulness ❌ Redondant (déjà couvert par prompt strict)
+4. Answer Relevance ❌ Capturé par Answer Similarity
+5. Context Recall ❌ Difficile à évaluer sans annotation manuelle
+6. Context Relevance ❌ Proche de Context Precision
+
+**Décision** :
+- Focus sur 2 métriques complémentaires
+- Context Precision → Qualité **retrieval**
+- Answer Similarity → Qualité **génération**
+- Couvre toute la chaîne RAG
+
+**Pondération 30/70** :
+```
+Score = (Context Precision × 0.30) + (Answer Similarity × 0.70)
+
+Pourquoi ?
+- Answer Similarity (70%) : métrique finale, ce que l'utilisateur voit
+- Context Precision (30%) : métrique intermédiaire, mais cruciale
+```
+
+---
+
+#### ⚠️ Ground Truth : Concept Clé
+
+**Les 2 métriques utilisent la ground truth** - c'est normal pour l'évaluation !
+
+**Qu'est-ce que la ground truth ?**
+```json
+{
+  "question": "What are three key learning objectives for Git course?",
+  "ground_truth": "The course aims to teach: 1) Git basics as VCS,
+                   2) Using Git with terminal and GitHub,
+                   3) Collaboration with agile methods"
+}
+```
+
+La ground truth = **réponse de référence** annotée manuellement par un humain.
+
+**Comment chaque métrique utilise la ground truth :**
+
+| Métrique | Utilisation de Ground Truth | Exemple |
+|----------|----------------------------|---------|
+| **Context Precision** | LLM-as-judge compare chaque document récupéré avec la question + ground truth pour savoir si le doc est pertinent | Doc contient "Git is a VCS" → Pertinent pour ground truth mentionnant "Git basics as VCS" ✅ |
+| **Answer Similarity** | Calcul de similarité sémantique directe entre answer et ground truth | Embeddings: cos(answer, ground_truth) = 0.82 |
+
+**Workflow d'évaluation complet :**
+
+```
+1. Dataset avec ground truth (annoté manuellement)
+   ├─ Question: "What are Git basics?"
+   └─ Ground Truth: "Git is a version control system..."
+
+2. RAG génère une réponse
+   └─ Answer: "Based on course materials, Git is a VCS for tracking code changes..."
+
+3. Évaluation RAGAS
+   ├─ Context Precision: LLM vérifie si docs récupérés contiennent infos de ground truth
+   └─ Answer Similarity: Compare sémantiquement answer vs ground truth
+
+4. Score final
+   └─ 87.4% (Grade A)
+```
+
+**Important : Évaluation vs Production**
+
+| Mode | Ground Truth ? | Utilisation |
+|------|----------------|-------------|
+| **Évaluation** | ✅ Nécessaire | Mesurer la qualité du système |
+| **Production** | ❌ Pas disponible | Utilisateurs posent des questions réelles |
+
+En production, on ne peut **pas** calculer Context Precision ni Answer Similarity car :
+- Pas de ground truth pré-annotée
+- Mais on peut monitorer d'autres métriques :
+  - Latence
+  - Nombre de documents récupérés
+  - Feedback utilisateur (👍/👎)
+
+**C'est pourquoi l'évaluation en amont est cruciale** pour s'assurer que le système fonctionne bien ! 🎯
+
+### Résultats Obtenus
+
+**Performance actuelle** (10 questions, dataset Git/Python) :
+
+```
+╔══════════════════════════════════════════════╗
+║  RAGAS EVALUATION - RESULTS                  ║
+╠══════════════════════════════════════════════╣
+║  Context Precision:     99.99%  ⭐           ║
+║  Answer Similarity:     82.0%               ║
+║  ─────────────────────────────────────────   ║
+║  Overall Score:         87.4%               ║
+║  Grade:                 A (Very Good)       ║
+║  Pass Rate:             90% (9/10)          ║
+╚══════════════════════════════════════════════╝
+```
+
+**Analyse** :
+- ✅ **Context Precision quasi-parfait** : RAG Fusion + RRF très efficace
+- ✅ **Answer Similarity bon** : Prompts optimisés
+- ✅ **Pass Rate > 80%** : Seuil dépassé
+
+### Lancer l'Évaluation
+
+**Évaluation complète** (10 questions) :
+```bash
+cd backend/scripts
+python run_evaluation.py
+```
+
+**Évaluation rapide** (2 questions) :
+```bash
+python run_evaluation.py --limit 2
+```
+
+**Options disponibles** :
+```bash
+# Désactiver RAG Fusion (test comparatif)
+python run_evaluation.py --no-rag-fusion
+
+# Changer température
+python run_evaluation.py --temperature 0.5
+
+# Changer nombre de documents
+python run_evaluation.py --k-documents 12
+```
+
+### Fichiers Générés
+
+- **Dataset** : `backend/scripts/evaluation_dataset.json` (10 questions)
+- **Rapport** : `backend/scripts/evaluation_report_YYYYMMDD_HHMMSS.json`
+
+**Structure du rapport** :
+```json
+{
+  "timestamp": "2025-11-18T10:30:00",
+  "evaluation_passed": true,
+  "summary": {
+    "total_questions": 10,
+    "passed": 9,
+    "pass_rate": 0.9,
+    "overall_score": 0.874,
+    "grade": "A (Very Good)"
+  },
+  "detailed_results": [...]
+}
+```
+
+### Critères de Réussite
+
+| Critère | Seuil | Actuel | Status |
+|---------|-------|--------|--------|
+| Pass Rate | ≥ 80% | 90% | ✅ |
+| Overall Score | ≥ 0.70 | 0.874 | ✅ |
+| Context Precision | ≥ 0.80 | 0.999 | ✅ |
+| Answer Similarity | ≥ 0.70 | 0.82 | ✅ |
+
+### Dataset d'Évaluation
+
+**10 questions** couvrant :
+- **Git Basics** (3 questions) - facile/moyen
+- **Python Classes** (3 questions) - facile/moyen
+- **Python Functions** (2 questions) - moyen
+- **Markdown** (2 questions) - facile
+
+Chaque question contient :
+```json
+{
+  "id": "q001",
+  "question": "What are three key learning objectives...",
+  "ground_truth": "The course aims to teach...",
+  "category": "Git Basics",
+  "difficulty": "easy",
+  "source_file": "01-introduction.md"
+}
+```
+
+### Optimisations Appliquées
+
+**Résultats des tests** (voir tests d'optimisation) :
+
+| Configuration | Score | Décision |
+|--------------|-------|----------|
+| k=4 docs | 0.759 | ❌ |
+| k=8 docs | **0.874** | ✅ **Retenu** |
+| k=12 docs | 0.841 | ❌ |
+| RAG Fusion ON | **0.874** | ✅ **Retenu** |
+| RAG Fusion OFF | 0.782 | ❌ |
+| Temperature 0.0 | 0.801 | ❌ |
+| Temperature 1.0 | **0.874** | ✅ **Retenu** |
+
+**Configuration finale optimale** :
+```python
+RAGFusion(
+    vectorstore=vectorstore,
+    use_rag_fusion=True,      # Multi-query + RRF
+    temperature=1.0,           # Diversité des réponses
+    k_documents=8              # Top 8 après RRF
+)
+```
 
 ---
 

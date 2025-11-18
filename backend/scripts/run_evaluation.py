@@ -13,7 +13,7 @@ import logging
 # Setup path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from rags.rag_agent import RAGAgent
+from rags.rag_fusion import RAGFusion
 from rags.evaluator import EvaluationEvaluator
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Chroma
@@ -77,8 +77,8 @@ def run_evaluation(
     print(f"Using {metadata.get('total_chunks', '?')} chunks")
     print()
 
-    # 2. Initialize RAG Agent
-    print("Initializing RAG Agent...")
+    # 2. Initialize RAG Fusion
+    print("Initializing RAG Fusion...")
     embeddings = HuggingFaceEmbeddings(
         model_name="sentence-transformers/all-MiniLM-L6-v2"
     )
@@ -89,10 +89,9 @@ def run_evaluation(
         embedding_function=embeddings
     )
 
-    # No checkpointer for evaluation - each question is independent
-    agent = RAGAgent(
+    # Each question is independent (stateless)
+    agent = RAGFusion(
         vectorstore,
-        checkpointer=None,
         use_rag_fusion=use_rag_fusion,
         temperature=temperature,
         k_documents=k_documents
@@ -106,7 +105,7 @@ def run_evaluation(
     config_info.append(f"k={k_documents}")
     config_str = " + ".join(config_info)
 
-    print(f"RAG Agent initialized ({config_str})")
+    print(f"RAG Fusion initialized ({config_str})")
     print()
 
     # 3. Initialize Evaluator

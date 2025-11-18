@@ -79,8 +79,10 @@ class EvaluationEvaluator:
 
         logger.info(f"Evaluating question: {question[:60]}...")
 
-        result = self.rag_agent.invoke(question, thread_id=thread_id)
-        contexts = self._extract_contexts(result["messages"])
+        result = self.rag_agent.invoke(question)
+
+        # Extract contexts from result (RAGFusion returns contexts directly)
+        contexts = result.get("contexts", [])
 
         if not contexts or contexts == [""]:
             logger.warning("No contexts retrieved!")
