@@ -10,10 +10,10 @@
 
 ```bash
 # Cloner le repo
-git clone https://github.com/gillesturpin/Agentic-RAG.git
+git clone https://github.com/gillesturpin/RAG-Fusion.git
 
 # Aller dans le dossier
-cd Agentic-RAG
+cd RAG-Fusion
 ```
 
 ### 2. Configuration de l'API Key
@@ -266,7 +266,7 @@ python backend/scripts/compare_implementations.py
 
 ## 📞 Ressources
 
-**GitHub** : https://github.com/gillesturpin/Agentic-RAG
+**GitHub** : https://github.com/gillesturpin/RAG-Fusion
 
 **Learning LangChain** (source d'inspiration) :
 - Ch3 : RAG Fusion pattern (simple chains)
